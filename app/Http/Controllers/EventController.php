@@ -17,7 +17,7 @@ class EventController extends Controller
     public function home()
     {
         $events = Event::with('creator')->latest()->take(6)->get();
-        return Inertia::render('Home', ['recentEvents' => $events]);
+        return Inertia::render('Welcome', ['recentEvents' => $events]);
     }
 
     public function index(Request $request)
