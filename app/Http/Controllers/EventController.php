@@ -3,12 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Models\Event;
+use App\Notifications\EventUpdated;
+use App\Notifications\EventDeletedNotification;
+use App\Notifications\EventCreatedNotification;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use App\Models\User;
 
 class EventController extends Controller
 {
@@ -63,7 +69,7 @@ class EventController extends Controller
         if ($request->hasFile('image')) {
             $path = $request->file('image')->store('events', 'public');
         }
-        Event::create([
+        $event = Event::create([
             'title' => $data['title'],
             'date' => $data['date'],
             'location' => $data['location'],
@@ -71,6 +77,19 @@ class EventController extends Controller
             'image_path' => $path,
             'creator_id' => Auth::id(),
         ]);
+
+        // Notifier tous les utilisateurs d'un nouvel événement
+        $recipients = User::query()->select('id','name','email')->get();
+        Log::info('EventCreated: preparing notifications', [
+            'event_id' => $event->id,
+            'recipients_count' => $recipients->count(),
+        ]);
+        if ($recipients->isNotEmpty()) {
+            Notification::send($recipients, new EventCreatedNotification($event));
+            Log::info('EventCreated: notifications dispatched', [
+                'event_id' => $event->id,
+            ]);
+        }
 
         return to_route('events.index');
     }
@@ -107,6 +126,26 @@ class EventController extends Controller
             'description'=>$data['description'] ?? null,
         ])->save();
 
+        // Notifier tous les participants de la mise à jour
+        // Charger explicitement les participants pour éviter tout souci de lazy loading
+        $participants = $event->participants()->get();
+        Log::info('EventUpdated: preparing notifications', [
+            'event_id' => $event->id,
+            'participants_count' => $participants->count(),
+            'emails' => $participants->pluck('email')->all(),
+        ]);
+        if ($participants->isNotEmpty()) {
+            Notification::send($participants, new EventUpdated($event));
+            Log::info('EventUpdated: notifications dispatched', [
+                'event_id' => $event->id,
+                'dispatched_to' => $participants->pluck('email')->all(),
+            ]);
+        } else {
+            Log::warning('EventUpdated: no participants to notify', [
+                'event_id' => $event->id,
+            ]);
+        }
+
         // Pour la modale du dashboard, on reste sur /dashboard
         if ($request->input('from') === 'dashboard' || $request->filled('edit')) {
             return to_route('dashboard');
@@ -118,8 +157,39 @@ class EventController extends Controller
     public function destroy(Event $event)
     {
         $this->authorize('delete', $event);
-        if ($event->image_path) Storage::disk('public')->delete($event->image_path);
+
+        // Récupérer les participants et les informations de l'événement avant suppression
+        $participants = $event->participants;
+        $eventTitle = $event->title;
+        $eventDate = $event->date;
+        $eventLocation = $event->location;
+
+        // Supprimer l'image si elle existe
+        if ($event->image_path) {
+            Storage::disk('public')->delete($event->image_path);
+        }
+
+        // Supprimer l'événement
         $event->delete();
+
+        // Notifier tous les participants de l'annulation
+        Log::info('EventDeleted: preparing notifications', [
+            'event_title' => $eventTitle,
+            'participants_count' => $participants->count(),
+            'emails' => $participants->pluck('email')->all(),
+        ]);
+        if ($participants->isNotEmpty()) {
+            Notification::send($participants, new EventDeletedNotification($eventTitle, $eventDate, $eventLocation));
+            Log::info('EventDeleted: notifications dispatched', [
+                'event_title' => $eventTitle,
+                'dispatched_to' => $participants->pluck('email')->all(),
+            ]);
+        } else {
+            Log::warning('EventDeleted: no participants to notify', [
+                'event_title' => $eventTitle,
+            ]);
+        }
+
         return back();
     }
 
@@ -171,7 +241,7 @@ class EventController extends Controller
             $path = $request->file('image')->store('events', 'public');
         }
 
-        Event::create([
+        $event = Event::create([
             'title'=>$data['title'],
             'date'=>$data['date'],
             'location'=>$data['location'],
@@ -179,6 +249,19 @@ class EventController extends Controller
             'image_path'=>$path,
             'creator_id'=>Auth::id(),
         ]);
+
+        // Notifier tous les utilisateurs d'un nouvel événement
+        $recipients = User::query()->select('id','name','email')->get();
+        Log::info('EventCreated: preparing notifications', [
+            'event_id' => $event->id,
+            'recipients_count' => $recipients->count(),
+        ]);
+        if ($recipients->isNotEmpty()) {
+            Notification::send($recipients, new EventCreatedNotification($event));
+            Log::info('EventCreated: notifications dispatched', [
+                'event_id' => $event->id,
+            ]);
+        }
 
         return to_route('dashboard');
     }

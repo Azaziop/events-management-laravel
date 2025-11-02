@@ -21,15 +21,25 @@ class EventUpdated extends Notification implements ShouldQueue // queue recomman
 
     public function toMail(object $notifiable): MailMessage
     {
+           $eventDate = is_string($this->event->date)
+               ? \Carbon\Carbon::parse($this->event->date)
+               : $this->event->date;
+
         return (new MailMessage)
-            ->subject('Mise à jour: '.$this->event->title)
-            ->greeting('Bonjour '.$notifiable->name.',')
-            ->line('L’événement a été mis à jour:')
-            ->line('• Titre: '.$this->event->title)
-            ->line('• Date: '.$this->event->date->format('d/m/Y H:i'))
-            ->line('• Lieu: '.$this->event->location)
-            ->action('Voir l’événement', url('/events/'.$this->event->id))
-            ->line('Merci de votre participation.');
+            ->subject('Mise à jour d\'événement - ' . $this->event->title . ' - EventApp')
+            ->greeting('Bonjour ' . $notifiable->name . ' !')
+            ->line('L\'événement auquel vous participez a été **mis à jour** :')
+            ->line('### ' . $this->event->title)
+            ->line('')
+               ->line('**Date :** ' . $eventDate->format('d/m/Y à H:i'))
+            ->line('**Lieu :** ' . $this->event->location)
+            ->when($this->event->description, function($mail) {
+                return $mail->line('**Description :** ' . $this->event->description);
+            })
+            ->line('')
+            ->action('Voir les détails', url('/dashboard'))
+            ->line('Merci de votre participation !')
+            ->salutation('Cordialement, L\'équipe EventApp');
     }
 
     public function toArray(object $notifiable): array
