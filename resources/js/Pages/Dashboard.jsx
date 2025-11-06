@@ -193,7 +193,9 @@ function EditModal({ initialEvent, onClose, onSubmit }) {
           </div>
           <div>
             <label className="text-sm text-gray-700">Date</label>
-            <Input className="w-full mt-1" type="date"
+            <Input
+              className="w-full mt-1"
+              type="date"
               value={form.date}
               onChange={(e) => setForm({ ...form, date: e.target.value })}
               required
@@ -201,7 +203,8 @@ function EditModal({ initialEvent, onClose, onSubmit }) {
           </div>
           <div>
             <label className="text-sm text-gray-700">Lieu</label>
-            <Input className="w-full mt-1"
+            <Input
+              className="w-full mt-1"
               value={form.location}
               onChange={(e) => setForm({ ...form, location: e.target.value })}
               required

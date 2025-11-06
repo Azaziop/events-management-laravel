@@ -14,10 +14,8 @@ use App\Http\Controllers\Admin\UserController as AdminUserController;
 |--------------------------------------------------------------------------
 */
 
-// Redirection vers login pour la page d'accueil
-Route::get('/', function () {
-    return redirect()->route('login');
-})->name('home');
+// Accueil public (landing) — affiche les événements récents en lecture seule
+Route::get('/', [EventController::class, 'home'])->name('home');
 
 // Dashboard (protégé)
 Route::get('/dashboard', fn () => Inertia::render('Dashboard'))
