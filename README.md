@@ -87,3 +87,4 @@ docker network inspect events_app-network
 ```bash
 docker compose down
 ```
+Thanks
