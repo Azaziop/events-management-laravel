@@ -5,8 +5,6 @@ Guide rapide pour démarrer l'application.
 ## Prérequis
 
 - Docker + Docker Compose
-- (Optionnel local) PHP 8.2+, Composer, Node.js 20+, PostgreSQL
-
 ## Image Docker Hub
 
 - Repository : https://hub.docker.com/r/azaziop/event-management
