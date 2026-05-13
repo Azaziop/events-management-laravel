@@ -15,6 +15,21 @@ Guide rapide pour démarrer l'application.
 docker pull azaziop/event-management:latest
 ```
 
+## CI/CD GitLab (build / test / release / deploy Docker Hub)
+
+Le pipeline GitLab est défini dans [.gitlab-ci.yml](.gitlab-ci.yml) avec 4 stages :
+
+- `build` : build frontend + vérification build Docker
+- `test` : exécution des tests Laravel (`php artisan test`)
+- `release` : push image taggée sur Docker Hub (si commit taggé)
+- `deploy` : push `latest` + SHA court sur Docker Hub (branche par défaut)
+
+Variables CI/CD à créer dans GitLab (Settings → CI/CD → Variables) :
+
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_TOKEN` (Access Token Docker Hub)
+- `DOCKERHUB_REPOSITORY` (optionnel, défaut: `event-management`)
+
 ---
 
 ## Démarrage recommandé (Docker)
