@@ -74,6 +74,9 @@ test_laravel:
     - name: postgres:16-alpine
       alias: db
   variables:
+    POSTGRES_DB: events_db
+    POSTGRES_USER: postgres
+    POSTGRES_PASSWORD: "123"
     DB_CONNECTION: pgsql
     DB_HOST: db
     DB_PORT: 5432
@@ -83,7 +86,7 @@ test_laravel:
     PGPASSWORD: "123"
   before_script:
     - apt-get update
-    - apt-get install -y git unzip libpq-dev
+    - apt-get install -y git unzip libpq-dev postgresql-client
     - docker-php-ext-install pdo pdo_pgsql
     - php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
     - php composer-setup.php --install-dir=/usr/local/bin --filename=composer
@@ -92,6 +95,7 @@ test_laravel:
     - cp .env.example .env
     - composer install --prefer-dist --no-interaction --no-progress
     - php artisan key:generate
+    - until pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USERNAME"; do echo "Waiting for PostgreSQL..."; sleep 2; done
     - php artisan migrate --force
     - php artisan test
 
