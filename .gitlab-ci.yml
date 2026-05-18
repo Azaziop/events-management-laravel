@@ -117,10 +117,15 @@ release_image:
   script:
     - test -n "$DOCKERHUB_USERNAME"
     - test -n "$DOCKERHUB_TOKEN"
-    - export DOCKERHUB_USERNAME_CLEAN="$(if [ -f \"$DOCKERHUB_USERNAME\" ]; then cat \"$DOCKERHUB_USERNAME\"; else printf '%s' \"$DOCKERHUB_USERNAME\"; fi | tr -d '\r\n')"
-    - export DOCKERHUB_TOKEN_CLEAN="$(if [ -f \"$DOCKERHUB_TOKEN\" ]; then cat \"$DOCKERHUB_TOKEN\"; else printf '%s' \"$DOCKERHUB_TOKEN\"; fi | tr -d '\r\n')"
+    - export DOCKERHUB_USERNAME_RAW="$(if [ -f \"$DOCKERHUB_USERNAME\" ]; then cat \"$DOCKERHUB_USERNAME\"; else printf '%s' \"$DOCKERHUB_USERNAME\"; fi)"
+    - export DOCKERHUB_TOKEN_RAW="$(if [ -f \"$DOCKERHUB_TOKEN\" ]; then cat \"$DOCKERHUB_TOKEN\"; else printf '%s' \"$DOCKERHUB_TOKEN\"; fi)"
+    - export DOCKERHUB_USERNAME_CLEAN="$(printf '%s' \"$DOCKERHUB_USERNAME_RAW\" | tr -d '\r\n\t ' )"
+    - export DOCKERHUB_TOKEN_CLEAN="$(printf '%s' \"$DOCKERHUB_TOKEN_RAW\" | tr -d '\r\n\t ' )"
+    - export DOCKERHUB_USERNAME_CLEAN="${DOCKERHUB_USERNAME_CLEAN#\"}" && export DOCKERHUB_USERNAME_CLEAN="${DOCKERHUB_USERNAME_CLEAN%\"}"
+    - export DOCKERHUB_TOKEN_CLEAN="${DOCKERHUB_TOKEN_CLEAN#\"}" && export DOCKERHUB_TOKEN_CLEAN="${DOCKERHUB_TOKEN_CLEAN%\"}"
     - test -n "$DOCKERHUB_USERNAME_CLEAN"
     - test -n "$DOCKERHUB_TOKEN_CLEAN"
+    - printf 'DockerHub username length=%s token length=%s\n' "${#DOCKERHUB_USERNAME_CLEAN}" "${#DOCKERHUB_TOKEN_CLEAN}"
     - export IMAGE_NAME="$DOCKERHUB_USERNAME_CLEAN/$DOCKERHUB_REPOSITORY"
     - printf '%s' "$DOCKERHUB_TOKEN_CLEAN" | docker login -u "$DOCKERHUB_USERNAME_CLEAN" --password-stdin
     - docker build -t "$IMAGE_NAME:$CI_COMMIT_TAG" .
@@ -142,10 +147,15 @@ deploy_latest:
   script:
     - test -n "$DOCKERHUB_USERNAME"
     - test -n "$DOCKERHUB_TOKEN"
-    - export DOCKERHUB_USERNAME_CLEAN="$(if [ -f \"$DOCKERHUB_USERNAME\" ]; then cat \"$DOCKERHUB_USERNAME\"; else printf '%s' \"$DOCKERHUB_USERNAME\"; fi | tr -d '\r\n')"
-    - export DOCKERHUB_TOKEN_CLEAN="$(if [ -f \"$DOCKERHUB_TOKEN\" ]; then cat \"$DOCKERHUB_TOKEN\"; else printf '%s' \"$DOCKERHUB_TOKEN\"; fi | tr -d '\r\n')"
+    - export DOCKERHUB_USERNAME_RAW="$(if [ -f \"$DOCKERHUB_USERNAME\" ]; then cat \"$DOCKERHUB_USERNAME\"; else printf '%s' \"$DOCKERHUB_USERNAME\"; fi)"
+    - export DOCKERHUB_TOKEN_RAW="$(if [ -f \"$DOCKERHUB_TOKEN\" ]; then cat \"$DOCKERHUB_TOKEN\"; else printf '%s' \"$DOCKERHUB_TOKEN\"; fi)"
+    - export DOCKERHUB_USERNAME_CLEAN="$(printf '%s' \"$DOCKERHUB_USERNAME_RAW\" | tr -d '\r\n\t ' )"
+    - export DOCKERHUB_TOKEN_CLEAN="$(printf '%s' \"$DOCKERHUB_TOKEN_RAW\" | tr -d '\r\n\t ' )"
+    - export DOCKERHUB_USERNAME_CLEAN="${DOCKERHUB_USERNAME_CLEAN#\"}" && export DOCKERHUB_USERNAME_CLEAN="${DOCKERHUB_USERNAME_CLEAN%\"}"
+    - export DOCKERHUB_TOKEN_CLEAN="${DOCKERHUB_TOKEN_CLEAN#\"}" && export DOCKERHUB_TOKEN_CLEAN="${DOCKERHUB_TOKEN_CLEAN%\"}"
     - test -n "$DOCKERHUB_USERNAME_CLEAN"
     - test -n "$DOCKERHUB_TOKEN_CLEAN"
+    - printf 'DockerHub username length=%s token length=%s\n' "${#DOCKERHUB_USERNAME_CLEAN}" "${#DOCKERHUB_TOKEN_CLEAN}"
     - export IMAGE_NAME="$DOCKERHUB_USERNAME_CLEAN/$DOCKERHUB_REPOSITORY"
     - printf '%s' "$DOCKERHUB_TOKEN_CLEAN" | docker login -u "$DOCKERHUB_USERNAME_CLEAN" --password-stdin
     - docker build -t "$IMAGE_NAME:latest" -t "$IMAGE_NAME:$CI_COMMIT_SHORT_SHA" .
