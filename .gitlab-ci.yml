@@ -57,6 +57,7 @@ build_backend:
   stage: build
   image: php:8.2-cli
   before_script:
+    - find app bootstrap config database public resources routes tests -type f \( -name "* 2.*" -o -name "* 3.*" \) -delete
     - apt-get update
     - apt-get install -y git unzip libzip-dev libsqlite3-dev
     - docker-php-ext-install pdo pdo_sqlite zip
@@ -85,6 +86,7 @@ test_laravel:
     DB_PASSWORD: "123"
     PGPASSWORD: "123"
   before_script:
+    - find app bootstrap config database public resources routes tests -type f \( -name "* 2.*" -o -name "* 3.*" \) -delete
     - apt-get update
     - apt-get install -y git unzip libpq-dev postgresql-client
     - docker-php-ext-install pdo pdo_pgsql
