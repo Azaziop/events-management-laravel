@@ -6,6 +6,7 @@ stages:
 
 variables:
   DOCKERHUB_REPOSITORY: "event-management"
+  COMPOSER_ALLOW_SUPERUSER: "1"
 
 cache:
   key: "$CI_COMMIT_REF_SLUG"
@@ -38,13 +39,38 @@ build_image_check:
     - docker version
     - docker build --pull -t "$CI_PROJECT_NAME:$CI_COMMIT_SHORT_SHA" .
 
-test_laravel:
-  stage: test
+build_backend:
+  stage: build
   image: php:8.2-cli
   before_script:
     - apt-get update
-    - apt-get install -y git unzip libsqlite3-dev
-    - docker-php-ext-install pdo pdo_sqlite
+    - apt-get install -y git unzip libzip-dev libsqlite3-dev
+    - docker-php-ext-install pdo pdo_sqlite zip
+    - php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+    - php composer-setup.php --install-dir=/usr/local/bin --filename=composer
+    - rm composer-setup.php
+  script:
+    - composer install --prefer-dist --no-interaction --no-progress
+    - php artisan --version
+
+prepare_database:
+  stage: build
+  image: php:8.2-cli
+  services:
+    - name: postgres:16-alpine
+      alias: db
+  variables:
+    DB_CONNECTION: pgsql
+    DB_HOST: db
+    DB_PORT: 5432
+    DB_DATABASE: events_db
+    DB_USERNAME: postgres
+    DB_PASSWORD: "123"
+    PGPASSWORD: "123"
+  before_script:
+    - apt-get update
+    - apt-get install -y git unzip libpq-dev
+    - docker-php-ext-install pdo pdo_pgsql
     - php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
     - php composer-setup.php --install-dir=/usr/local/bin --filename=composer
     - rm composer-setup.php
@@ -52,6 +78,34 @@ test_laravel:
     - cp .env.example .env
     - composer install --prefer-dist --no-interaction --no-progress
     - php artisan key:generate
+    - php artisan migrate --force
+
+test_laravel:
+  stage: test
+  image: php:8.2-cli
+  services:
+    - name: postgres:16-alpine
+      alias: db
+  variables:
+    DB_CONNECTION: pgsql
+    DB_HOST: db
+    DB_PORT: 5432
+    DB_DATABASE: events_db
+    DB_USERNAME: postgres
+    DB_PASSWORD: "123"
+    PGPASSWORD: "123"
+  before_script:
+    - apt-get update
+    - apt-get install -y git unzip libpq-dev
+    - docker-php-ext-install pdo pdo_pgsql
+    - php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+    - php composer-setup.php --install-dir=/usr/local/bin --filename=composer
+    - rm composer-setup.php
+  script:
+    - cp .env.example .env
+    - composer install --prefer-dist --no-interaction --no-progress
+    - php artisan key:generate
+    - php artisan migrate --force
     - php artisan test
 
 release_image:
