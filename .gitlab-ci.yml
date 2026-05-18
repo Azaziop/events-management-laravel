@@ -14,6 +14,20 @@ cache:
     - vendor/
     - node_modules/
 
+verify_dind:
+  stage: build
+  image: docker:27
+  services:
+    - name: docker:27-dind
+      alias: docker
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  script:
+    - docker version
+    - docker info
+    - docker run --rm hello-world
+
 build_assets:
   stage: build
   image: node:20-alpine
@@ -52,33 +66,6 @@ build_backend:
   script:
     - composer install --prefer-dist --no-interaction --no-progress
     - php artisan --version
-
-prepare_database:
-  stage: build
-  image: php:8.2-cli
-  services:
-    - name: postgres:16-alpine
-      alias: db
-  variables:
-    DB_CONNECTION: pgsql
-    DB_HOST: db
-    DB_PORT: 5432
-    DB_DATABASE: events_db
-    DB_USERNAME: postgres
-    DB_PASSWORD: "123"
-    PGPASSWORD: "123"
-  before_script:
-    - apt-get update
-    - apt-get install -y git unzip libpq-dev
-    - docker-php-ext-install pdo pdo_pgsql
-    - php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
-    - php composer-setup.php --install-dir=/usr/local/bin --filename=composer
-    - rm composer-setup.php
-  script:
-    - cp .env.example .env
-    - composer install --prefer-dist --no-interaction --no-progress
-    - php artisan key:generate
-    - php artisan migrate --force
 
 test_laravel:
   stage: test
