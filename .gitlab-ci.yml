@@ -5,7 +5,7 @@ stages:
   - deploy
 
 variables:
-  DOCKERHUB_REPOSITORY: "event-management"
+  DOCKERHUB_REPOSITORY: "event-management1"
   COMPOSER_ALLOW_SUPERUSER: "1"
 
 cache:
