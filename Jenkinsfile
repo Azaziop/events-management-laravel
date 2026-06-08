@@ -48,14 +48,20 @@ Installez Docker sur le nœud Jenkins (obligatoire pour ce pipeline) :
                         \\( -name "* 2.*" -o -name "* 3.*" \\) -delete 2>/dev/null || true
 
                     # Envoi du code via tar (compatible Jenkins-in-Docker sur Mac)
+                    # npm/vite doivent être silencieux : toute sortie stdout corrompt le tar binaire
                     mkdir -p "$WORKSPACE/public/build"
                     tar -C "$WORKSPACE" -cf - . | docker run --rm -i -w /app node:20-alpine sh -c '
+                        set -e
                         tar -xf - -C /app
-                        npm ci || npm install
-                        npm run build
+                        npm ci >/dev/null 2>&1 || npm install >/dev/null 2>&1
+                        npm run build >/dev/null 2>&1
                         tar -cf /tmp/vite-assets.tar -C public/build .
-                        cat /tmp/vite-assets.tar
-                    ' | tar -C "$WORKSPACE/public/build" -xf -
+                        base64 /tmp/vite-assets.tar
+                    ' | base64 -d | tar -C "$WORKSPACE/public/build" -xf -
+                    test -f "$WORKSPACE/public/build/manifest.json" || {
+                        echo "Erreur : public/build/manifest.json introuvable après npm run build"
+                        exit 1
+                    }
 
                     tar -C "$WORKSPACE" -cf - . | docker run --rm -i -w /app php:8.2-cli bash -c '
                         apt-get update -qq
