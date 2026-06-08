@@ -77,6 +77,8 @@ Le pipeline Jenkins inclut un stage **« Déploiement Kubernetes (Minikube) »**
 
 Prérequis sur l'agent Jenkins : **Docker** (socket monté si Jenkins tourne dans Docker). Les binaires **minikube**, **kubectl** et **helm** sont installés automatiquement au premier déploiement si absents.
 
+**Premier build :** le téléchargement de Kubernetes par Minikube peut prendre **10 à 15 minutes** (normal). Les builds suivants réutilisent le cluster dans `~/.minikube` et sont beaucoup plus rapides.
+
 Pour désactiver ce déploiement sur un job : `DEPLOY_MINIKUBE=false`.
 
 ## Fichiers du chart

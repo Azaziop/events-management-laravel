@@ -89,3 +89,39 @@ install_k8s_tools_if_missing() {
 k8s_is_ci() {
     [ -n "${JENKINS_URL:-}" ] || [ "${CI:-}" = "true" ]
 }
+
+k8s_log_line() {
+    printf '%s %s\n' "$(date '+%H:%M:%S')" "$*"
+}
+
+minikube_start_with_progress() {
+    local -a args=("$@")
+
+    if minikube status -p minikube >/dev/null 2>&1; then
+        k8s_log_line "Minikube déjà démarré — réutilisation du cluster existant."
+        return 0
+    fi
+
+    if minikube profile list 2>/dev/null | grep -q 'minikube'; then
+        k8s_log_line "Profil Minikube existant — redémarrage sans re-téléchargement complet."
+    else
+        k8s_log_line "Premier démarrage : téléchargement Kubernetes (~300 Mo)."
+        k8s_log_line "Comptez 10 à 15 min. Les builds suivants seront bien plus rapides."
+    fi
+
+    export MINIKUBE_IN_STYLE=false
+
+    local exit_code=0
+    if command -v stdbuf >/dev/null 2>&1; then
+        set +o pipefail
+        stdbuf -oL -eL minikube start "${args[@]}" --alsologtostderr -v=1 2>&1 | while IFS= read -r line; do
+            k8s_log_line "$line"
+        done
+        exit_code="${PIPESTATUS[0]}"
+        set -o pipefail
+    else
+        minikube start "${args[@]}" --alsologtostderr -v=1 || exit_code=$?
+    fi
+
+    return "$exit_code"
+}

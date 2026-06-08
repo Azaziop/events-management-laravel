@@ -242,6 +242,9 @@ EOF
         }
 
         stage('Déploiement Kubernetes (Minikube)') {
+            options {
+                timeout(time: 25, unit: 'MINUTES')
+            }
             when {
                 expression {
                     if (env.DEPLOY_MINIKUBE == 'false') {
