@@ -15,6 +15,9 @@ docker_image_tag = "16-68b4bdb"
 # Laisser http://localhost : Terraform utilisera automatiquement le DNS de l'ALB
 app_url = "http://localhost"
 
+# Email pour les alertes CloudWatch (confirmer l'abonnement SNS après terraform apply)
+alert_email = "votre.email@example.com"
+
 # ECS Fargate (ARM64 — même arch que l'image Jenkins sur Mac Apple Silicon)
 ecs_desired_count = 1
 ecs_task_cpu      = "512"

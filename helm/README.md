@@ -85,6 +85,15 @@ Prérequis sur l'agent Jenkins : **Docker** avec le socket monté (`-v /var/run/
 
 Pour forcer le mode : `K8S_CLUSTER=kind` ou `K8S_CLUSTER=minikube`. Pour désactiver : `DEPLOY_MINIKUBE=false`.
 
+## Monitoring — Étape 6 (Kubernetes)
+
+Voir [helm/monitoring/README.md](../monitoring/README.md).
+
+- **Grafana** : http://localhost:30300 (`admin` / `admin`)
+- **Prometheus** : métriques cluster + pods EventApp
+- **Loki** : logs centralisés des pods
+- Déployé automatiquement par Jenkins après l'application
+
 ## Fichiers du chart
 
 | Fichier | Rôle |

@@ -87,3 +87,9 @@ variable "app_url" {
   type        = string
   default     = "http://localhost"
 }
+
+variable "alert_email" {
+  description = "Email pour les alertes CloudWatch (vide = pas d'abonnement SNS email)"
+  type        = string
+  default     = ""
+}

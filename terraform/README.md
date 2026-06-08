@@ -29,6 +29,7 @@ Internet
 | Stockage | EFS pour `storage/` Laravel |
 | Base de données | RDS PostgreSQL 16 |
 | Logs | CloudWatch `/ecs/event-management` |
+| Monitoring | CloudWatch Dashboard + Alarmes SNS (étape 6) |
 
 L'image `azaziop/event-management1` est construite par Jenkins (ARM64) et déployée sur ECS Fargate ARM64.
 
@@ -154,6 +155,54 @@ export AWS_REGION=eu-west-3
 | `docker_image_tag` | Tag Jenkins pour le 1er déploiement Terraform |
 | `ecs_task_cpu` / `ecs_task_memory` | Taille Fargate (défaut 512/1024) |
 | `app_url` | `http://localhost` = DNS ALB automatique |
+| `alert_email` | Email pour alertes SNS (confirmer l'abonnement après apply) |
+
+## Monitoring — Étape 6 (AWS)
+
+Après `terraform apply`, la stack inclut :
+
+| Composant | Description |
+|-----------|-------------|
+| **CloudWatch Logs** | Logs ECS backend + nginx (`/ecs/event-management`) |
+| **Container Insights** | Métriques ECS (CPU, mémoire, tâches) |
+| **Dashboard** | ALB, ECS, RDS, erreurs Laravel |
+| **Alarmes SNS** | 5xx ALB, cibles unhealthy, 0 task ECS, CPU ECS/RDS, erreurs logs |
+
+### Activer les alertes email
+
+Dans `terraform.tfvars` :
+
+```hcl
+alert_email = "votre.email@example.com"
+```
+
+Puis :
+
+```bash
+cd terraform
+terraform apply
+```
+
+**Important :** AWS envoie un email de confirmation SNS — cliquez sur le lien pour recevoir les alertes.
+
+### Accès
+
+```bash
+terraform output cloudwatch_dashboard_url
+terraform output cloudwatch_log_group
+terraform output sns_alerts_topic_arn
+```
+
+Console AWS → **CloudWatch** → **Dashboards** → `event-management-dashboard`
+
+### Alarmes configurées
+
+- `event-management-alb-5xx` — erreurs HTTP 5xx
+- `event-management-alb-unhealthy-hosts` — cibles ECS down
+- `event-management-ecs-no-running-tasks` — aucune tâche ECS
+- `event-management-ecs-cpu-high` — CPU > 80 %
+- `event-management-rds-cpu-high` — CPU RDS > 80 %
+- `event-management-laravel-errors` — erreurs dans les logs Laravel
 
 ## Destruction
 

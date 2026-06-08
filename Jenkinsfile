@@ -278,11 +278,38 @@ EOF
                             export K8S_NAMESPACE="${K8S_NAMESPACE:-default}"
                             export PATH="${HOME}/.local/bin:${PATH}"
 
-                            chmod +x scripts/k8s-tools.sh scripts/minikube-setup.sh scripts/k8s-deploy.sh
+                            chmod +x scripts/k8s-tools.sh scripts/minikube-setup.sh scripts/k8s-deploy.sh scripts/k8s-monitoring-deploy.sh
                             ./scripts/minikube-setup.sh
                             ./scripts/k8s-deploy.sh
                         '''
                     }
+                }
+            }
+        }
+
+        stage('Monitoring Kubernetes') {
+            options {
+                timeout(time: 15, unit: 'MINUTES')
+            }
+            when {
+                expression {
+                    if (env.DEPLOY_MINIKUBE == 'false') {
+                        return false
+                    }
+                    if (env.TAG_NAME?.trim()) {
+                        return true
+                    }
+                    def branch = (env.BRANCH_NAME ?: env.GIT_BRANCH ?: '').replaceFirst(/^origin\//, '').trim()
+                    return branch in ['master', 'main']
+                }
+            }
+            steps {
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    sh '''
+                        export PATH="${HOME}/.local/bin:${PATH}"
+                        chmod +x scripts/k8s-tools.sh scripts/k8s-monitoring-deploy.sh
+                        ./scripts/k8s-monitoring-deploy.sh
+                    '''
                 }
             }
         }

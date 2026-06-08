@@ -163,9 +163,10 @@ k8s_cleanup_broken_minikube() {
 }
 
 kind_setup_cluster() {
-    local cluster node_port config_file
+    local cluster node_port grafana_port config_file
     cluster="$(kind_cluster_name)"
     node_port="${KIND_NODE_PORT:-30080}"
+    grafana_port="${GRAFANA_NODE_PORT:-30300}"
 
     install_k8s_tools_if_missing
     command -v kind >/dev/null 2>&1 || { echo "kind introuvable"; return 1; }
@@ -188,6 +189,9 @@ nodes:
     extraPortMappings:
       - containerPort: ${node_port}
         hostPort: ${node_port}
+        protocol: TCP
+      - containerPort: ${grafana_port}
+        hostPort: ${grafana_port}
         protocol: TCP
 EOF
 
