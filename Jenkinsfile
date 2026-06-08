@@ -1,5 +1,5 @@
 pipeline {
-    agent none
+    agent any
 
     environment {
         DOCKERHUB_REPOSITORY = 'event-management1'
@@ -16,7 +16,6 @@ pipeline {
 
     stages {
         stage('Vérification Docker') {
-            agent any
             steps {
                 script {
                     def dockerAvailable = sh(
@@ -43,53 +42,33 @@ Installez Docker sur le nœud Jenkins (obligatoire pour ce pipeline) :
         }
 
         stage('Build automatique de l\'application') {
-            agent {
-                docker {
-                    image 'node:20-alpine'
-                    reuseNode true
-                }
-            }
             steps {
                 sh '''
                     find app bootstrap config database public resources routes tests -type f \
                         \\( -name "* 2.*" -o -name "* 3.*" \\) -delete 2>/dev/null || true
 
-                    npm ci
-                    npm run build
-                '''
-            }
-        }
+                    docker run --rm -v "$PWD:/app" -w /app node:20-alpine sh -c "
+                        npm ci
+                        npm run build
+                    "
 
-        stage('Installation des dépendances PHP') {
-            agent {
-                docker {
-                    image 'composer:2'
-                    reuseNode true
-                    args '-u root:root'
-                }
-            }
-            steps {
-                sh '''
-                    composer install --prefer-dist --no-interaction --no-progress --no-scripts
-                    php artisan --version
+                    docker run --rm -v "$PWD:/app" -w /app composer:2 sh -c "
+                        composer install --prefer-dist --no-interaction --no-progress
+                        php artisan --version
+                    "
                 '''
             }
         }
 
         stage('Exécution des tests (si disponibles)') {
-            agent {
-                docker {
-                    image 'composer:2'
-                    reuseNode true
-                    args '-u root:root'
-                }
-            }
             steps {
                 sh '''
                     if [ -d tests ] && [ -f phpunit.xml ]; then
-                        cp -n .env.example .env 2>/dev/null || true
-                        php artisan key:generate --force
-                        php artisan test
+                        docker run --rm -v "$PWD:/app" -w /app composer:2 sh -c "
+                            cp -n .env.example .env 2>/dev/null || true
+                            php artisan key:generate --force
+                            php artisan test
+                        "
                     else
                         echo "Aucun test disponible, étape ignorée."
                     fi
@@ -98,17 +77,10 @@ Installez Docker sur le nœud Jenkins (obligatoire pour ce pipeline) :
         }
 
         stage('Vérification de la qualité du code') {
-            agent {
-                docker {
-                    image 'composer:2'
-                    reuseNode true
-                    args '-u root:root'
-                }
-            }
             steps {
                 sh '''
                     if [ -f vendor/bin/pint ]; then
-                        ./vendor/bin/pint --test
+                        docker run --rm -v "$PWD:/app" -w /app composer:2 ./vendor/bin/pint --test
                     else
                         echo "Laravel Pint non disponible, étape ignorée."
                     fi
@@ -117,7 +89,6 @@ Installez Docker sur le nœud Jenkins (obligatoire pour ce pipeline) :
         }
 
         stage('Construction des images Docker') {
-            agent any
             steps {
                 sh """
                     docker build --pull -t ${LOCAL_IMAGE} .
@@ -135,7 +106,6 @@ Installez Docker sur le nœud Jenkins (obligatoire pour ce pipeline) :
                     expression { return env.TAG_NAME != null }
                 }
             }
-            agent any
             steps {
                 withCredentials([
                     usernamePassword(
@@ -170,7 +140,6 @@ Installez Docker sur le nœud Jenkins (obligatoire pour ce pipeline) :
                     expression { return env.TAG_NAME != null }
                 }
             }
-            agent any
             steps {
                 withCredentials([
                     usernamePassword(
@@ -203,7 +172,6 @@ Installez Docker sur le nœud Jenkins (obligatoire pour ce pipeline) :
                     expression { return env.TAG_NAME != null }
                 }
             }
-            agent any
             steps {
                 withCredentials([
                     usernamePassword(
