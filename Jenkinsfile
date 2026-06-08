@@ -53,7 +53,7 @@ Installez Docker sur le nœud Jenkins (obligatoire pour ce pipeline) :
                         tar -xf - -C /app
                         npm ci || npm install
                         npm run build
-                        tar -C public/build -cf /tmp/vite-assets.tar
+                        tar -cf /tmp/vite-assets.tar -C public/build .
                         cat /tmp/vite-assets.tar
                     ' | tar -C "$WORKSPACE/public/build" -xf -
 
