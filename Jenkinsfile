@@ -129,11 +129,13 @@ Installez Docker sur le nœud Jenkins (obligatoire pour ce pipeline) :
 
         stage('Push automatique des images Docker') {
             when {
-                anyOf {
-                    branch 'main'
-                    branch 'master'
-                    branch 'develop'
-                    expression { return env.TAG_NAME != null }
+                // branch 'master' ne fonctionne qu'en Multibranch ; GIT_BRANCH couvre les jobs SCM classiques
+                expression {
+                    if (env.TAG_NAME?.trim()) {
+                        return true
+                    }
+                    def branch = (env.BRANCH_NAME ?: env.GIT_BRANCH ?: '').replaceFirst(/^origin\//, '').trim()
+                    return branch in ['master', 'main', 'develop']
                 }
             }
             steps {
@@ -163,11 +165,12 @@ Installez Docker sur le nœud Jenkins (obligatoire pour ce pipeline) :
 
         stage('Publication sur un registry (Docker Hub)') {
             when {
-                anyOf {
-                    branch 'main'
-                    branch 'master'
-                    branch 'develop'
-                    expression { return env.TAG_NAME != null }
+                expression {
+                    if (env.TAG_NAME?.trim()) {
+                        return true
+                    }
+                    def branch = (env.BRANCH_NAME ?: env.GIT_BRANCH ?: '').replaceFirst(/^origin\//, '').trim()
+                    return branch in ['master', 'main', 'develop']
                 }
             }
             steps {
@@ -196,10 +199,12 @@ Installez Docker sur le nœud Jenkins (obligatoire pour ce pipeline) :
 
         stage('Préparation du déploiement sur l\'environnement cible') {
             when {
-                anyOf {
-                    branch 'main'
-                    branch 'master'
-                    expression { return env.TAG_NAME != null }
+                expression {
+                    if (env.TAG_NAME?.trim()) {
+                        return true
+                    }
+                    def branch = (env.BRANCH_NAME ?: env.GIT_BRANCH ?: '').replaceFirst(/^origin\//, '').trim()
+                    return branch in ['master', 'main']
                 }
             }
             steps {
