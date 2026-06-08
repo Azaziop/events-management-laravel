@@ -47,7 +47,7 @@ Installez Docker sur le nœud Jenkins (obligatoire pour ce pipeline) :
                     find app bootstrap config database public resources routes tests -type f \
                         \\( -name "* 2.*" -o -name "* 3.*" \\) -delete 2>/dev/null || true
 
-                    mkdir -p public
+                    mkdir -p public/build
 
                     # Envoi du code via tar (compatible Jenkins-in-Docker sur Mac)
                     # Seuls les artefacts sont renvoyés sur stdout pour éviter la corruption du flux
@@ -55,14 +55,14 @@ Installez Docker sur le nœud Jenkins (obligatoire pour ce pipeline) :
                         tar -xf - -C /app
                         npm ci || npm install
                         npm run build >&2
-                        tar -C /app/public/build -cf -
+                        tar -C /app/public -cf - build
                     ' | tar -C "$WORKSPACE/public" -xf -
 
                     tar -C "$WORKSPACE" -cf - . | docker run --rm -i -w /app composer:2 sh -c '
                         tar -xf - -C /app
                         composer install --prefer-dist --no-interaction --no-progress >&2
                         php artisan --version >&2
-                        tar -C /app/vendor -cf -
+                        tar -C /app/vendor -cf - .
                     ' | tar -C "$WORKSPACE" -xf -
                 '''
             }
