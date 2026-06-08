@@ -11,6 +11,8 @@ locals {
     chown -R www-data:www-data storage bootstrap/cache 2>/dev/null || true
     chmod -R 777 storage bootstrap/cache
     su -s /bin/sh www-data -c 'php artisan config:clear && php artisan migrate --force'
+    mkdir -p storage/app/public/events
+    ln -sfn /var/www/html/storage/app/public /shared/public/storage
     touch /shared/public/.ready
     exec php-fpm
   EOT

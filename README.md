@@ -46,13 +46,14 @@ docker compose up -d --build
 docker compose exec backend php artisan migrate --force
 ```
 
-3. Créer l'admin par défaut :
+3. Créer l'admin et les événements de démo (avec photos) :
 
 ```bash
 docker compose exec backend php artisan db:seed --class=AdminUserSeeder --force
+docker compose exec backend php artisan db:seed --class=EventSeeder --force
 ```
 
-4. Corriger les images/storage (lien `public/storage`) :
+4. Lien storage pour afficher les images :
 
 ```bash
 docker compose exec backend sh -lc 'rm -f public/storage && php artisan storage:link && php artisan optimize:clear'
