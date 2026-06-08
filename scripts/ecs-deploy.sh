@@ -10,8 +10,28 @@ IMAGE_TAG="${IMAGE_TAG:?IMAGE_TAG requis}"
 
 NEW_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
 
-command -v aws >/dev/null 2>&1 || { echo "AWS CLI introuvable"; exit 1; }
-command -v jq >/dev/null 2>&1 || { echo "jq introuvable (brew install jq / apt install jq)"; exit 1; }
+# Sur l'agent Jenkins (souvent sans aws/jq), exécuter via un conteneur éphémère.
+if [[ "${ECS_DEPLOY_IN_DOCKER:-}" != "1" ]] && { ! command -v aws >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; }; then
+    if command -v docker >/dev/null 2>&1; then
+        SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ecs-deploy.sh"
+        echo "AWS CLI ou jq introuvable sur l'hôte — exécution via conteneur alpine"
+        exec docker run --rm --entrypoint bash \
+            -e ECS_DEPLOY_IN_DOCKER=1 \
+            -e AWS_ACCESS_KEY_ID \
+            -e AWS_SECRET_ACCESS_KEY \
+            -e AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-$AWS_REGION}" \
+            -e AWS_REGION="$AWS_REGION" \
+            -e ECS_CLUSTER="$CLUSTER" \
+            -e ECS_SERVICE="$SERVICE" \
+            -e IMAGE_NAME="$IMAGE_NAME" \
+            -e IMAGE_TAG="$IMAGE_TAG" \
+            -v "${SCRIPT_PATH}:/ecs-deploy.sh:ro" \
+            alpine:3.19 \
+            -c 'apk add --no-cache aws-cli jq bash >/dev/null 2>&1 && bash /ecs-deploy.sh'
+    fi
+    command -v aws >/dev/null 2>&1 || { echo "AWS CLI introuvable"; exit 1; }
+    command -v jq >/dev/null 2>&1 || { echo "jq introuvable (brew install jq / apt install jq)"; exit 1; }
+fi
 
 echo "=== Déploiement ECS : ${NEW_IMAGE} ==="
 

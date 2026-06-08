@@ -105,7 +105,7 @@ aws ec2 delete-security-group --group-id sg-05e3ab2b2eec2758e --region eu-west-3
 
 ## CI/CD Jenkins → ECS
 
-Le pipeline Jenkins pousse l'image sur Docker Hub puis déploie sur ECS via `scripts/ecs-deploy.sh`.
+Le pipeline Jenkins pousse l'image sur Docker Hub puis déploie sur ECS via `scripts/ecs-deploy.sh` (si `aws`/`jq` sont absents sur l'agent, le script utilise automatiquement un conteneur `alpine` éphémère).
 
 ### Credentials Jenkins requis
 
