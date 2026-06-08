@@ -20,6 +20,10 @@ Stack déployée via `./scripts/k8s-monitoring-deploy.sh` :
 
 Jenkins exécute ce script automatiquement après le déploiement de l'application.
 
+**Ordre de déploiement :** Prometheus + Grafana en premier, puis Loki (optionnel sur kind).
+
+Sur kind/Jenkins, si Loki manque de ressources, Grafana et Prometheus restent disponibles.
+
 ## Accès Grafana
 
 | | |

@@ -1,4 +1,4 @@
-# Loki — centralisation des logs (grafana/loki chart, mode SingleBinary)
+# Loki — centralisation des logs (mode SingleBinary, léger pour kind)
 deploymentMode: SingleBinary
 
 loki:
@@ -7,6 +7,8 @@ loki:
     replication_factor: 1
   storage:
     type: filesystem
+  limits_config:
+    retention_period: 24h
   schemaConfig:
     configs:
       - from: "2024-01-01"
@@ -23,8 +25,10 @@ singleBinary:
     enabled: false
   resources:
     requests:
-      cpu: 50m
-      memory: 128Mi
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
 
 read:
   replicas: 0

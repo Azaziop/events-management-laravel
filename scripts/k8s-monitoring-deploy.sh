@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Déploie la stack monitoring K8s : Prometheus + Grafana + Loki + Promtail.
+# Déploie la stack monitoring K8s : Prometheus + Grafana (+ Loki/Promtail si ressources suffisantes).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -10,6 +10,7 @@ source "${SCRIPT_DIR}/k8s-tools.sh"
 k8s_setup_path
 NAMESPACE="${MONITORING_NAMESPACE:-monitoring}"
 GRAFANA_NODE_PORT="${GRAFANA_NODE_PORT:-30300}"
+LOKI_ENABLED="${LOKI_ENABLED:-auto}"
 
 if ! command -v helm >/dev/null 2>&1 || ! command -v kubectl >/dev/null 2>&1; then
     k8s_log_line "=== Outils K8s absents — installation automatique ==="
@@ -25,29 +26,64 @@ kubectl cluster-info >/dev/null 2>&1 || {
     exit 1
 }
 
+should_deploy_loki() {
+    case "${LOKI_ENABLED}" in
+        true | 1 | yes) return 0 ;;
+        false | 0 | no) return 1 ;;
+        auto)
+            # kind/Jenkins : ressources limitées — Loki optionnel
+            if k8s_using_kind || k8s_is_ci; then
+                return 0
+            fi
+            return 0
+            ;;
+        *) return 0 ;;
+    esac
+}
+
 k8s_log_line "=== Ajout des dépôts Helm (prometheus-community, grafana) ==="
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts 2>/dev/null || true
 helm repo add grafana https://grafana.github.io/helm-charts 2>/dev/null || true
 helm repo update
 
-k8s_log_line "=== Déploiement Loki (logs) ==="
-helm upgrade --install loki grafana/loki \
-    --namespace "${NAMESPACE}" \
-    --create-namespace \
-    -f "${MONITORING_DIR}/loki-values.yaml" \
-    --wait --timeout 5m
+declare -a prom_extra_sets=()
+if k8s_using_kind || k8s_is_ci; then
+    k8s_log_line "Mode kind/CI : stack allégée (Alertmanager/node-exporter désactivés)"
+    prom_extra_sets+=(
+        --set alertmanager.enabled=false
+        --set nodeExporter.enabled=false
+        --set prometheus.prometheusSpec.retention=2h
+    )
+fi
 
-k8s_log_line "=== Déploiement Promtail (collecte logs) ==="
-helm upgrade --install promtail grafana/promtail \
-    --namespace "${NAMESPACE}" \
-    -f "${MONITORING_DIR}/promtail-values.yaml" \
-    --wait --timeout 5m
-
-k8s_log_line "=== Déploiement kube-prometheus-stack (métriques + Grafana + alertes) ==="
+k8s_log_line "=== Déploiement kube-prometheus-stack (Prometheus + Grafana) ==="
 helm upgrade --install kube-prometheus prometheus-community/kube-prometheus-stack \
     --namespace "${NAMESPACE}" \
+    --create-namespace \
     -f "${MONITORING_DIR}/kube-prometheus-stack-values.yaml" \
-    --wait --timeout 10m
+    "${prom_extra_sets[@]}" \
+    --wait --timeout 15m
+
+loki_ok=false
+if should_deploy_loki; then
+    k8s_log_line "=== Déploiement Loki (logs) — timeout 8 min ==="
+    if helm upgrade --install loki grafana/loki \
+        --namespace "${NAMESPACE}" \
+        -f "${MONITORING_DIR}/loki-values.yaml" \
+        --wait --timeout 8m 2>&1; then
+        loki_ok=true
+        k8s_log_line "=== Déploiement Promtail (collecte logs) ==="
+        helm upgrade --install promtail grafana/promtail \
+            --namespace "${NAMESPACE}" \
+            -f "${MONITORING_DIR}/promtail-values.yaml" \
+            --timeout 3m || k8s_log_line "Promtail en échec (non bloquant)"
+    else
+        k8s_log_line "Loki non prêt à temps — Grafana/Prometheus restent disponibles sans logs centralisés"
+        helm uninstall loki -n "${NAMESPACE}" 2>/dev/null || true
+    fi
+else
+    k8s_log_line "Loki désactivé (LOKI_ENABLED=false)"
+fi
 
 echo ""
 k8s_log_line "=== Statut monitoring ==="
@@ -58,9 +94,14 @@ k8s_log_line "=== Accès Grafana ==="
 k8s_log_line "  URL      : http://localhost:${GRAFANA_NODE_PORT}"
 k8s_log_line "  Login    : admin"
 k8s_log_line "  Password : admin"
-k8s_log_line "  Datasource Loki : déjà configuré"
+if $loki_ok; then
+    k8s_log_line "  Loki     : actif — requête {namespace=\"default\", pod=~\"eventapp.*\"}"
+else
+    k8s_log_line "  Loki     : non déployé — utilisez kubectl logs pour les logs"
+fi
 k8s_log_line ""
-k8s_log_line "Requête Loki (logs EventApp) : {namespace=\"default\", pod=~\"eventapp.*\"}"
+k8s_log_line "Prometheus UI :"
+k8s_log_line "  kubectl port-forward -n ${NAMESPACE} svc/kube-prometheus-kube-prome-prometheus 9090:9090"
 k8s_log_line ""
-k8s_log_line "Si le port ${GRAFANA_NODE_PORT} ne répond pas (cluster kind existant), utilisez :"
+k8s_log_line "Si Grafana ne répond pas sur le port ${GRAFANA_NODE_PORT} :"
 k8s_log_line "  kubectl port-forward -n ${NAMESPACE} svc/kube-prometheus-grafana 30300:80"
