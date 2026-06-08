@@ -15,7 +15,7 @@ if [[ "${ECS_DEPLOY_IN_DOCKER:-}" != "1" ]] && { ! command -v aws >/dev/null 2>&
     if command -v docker >/dev/null 2>&1; then
         SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ecs-deploy.sh"
         echo "AWS CLI ou jq introuvable sur l'hôte — exécution via conteneur alpine"
-        exec docker run --rm --entrypoint bash \
+        exec docker run --rm --entrypoint sh \
             -e ECS_DEPLOY_IN_DOCKER=1 \
             -e AWS_ACCESS_KEY_ID \
             -e AWS_SECRET_ACCESS_KEY \
