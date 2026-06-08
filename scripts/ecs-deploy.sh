@@ -15,7 +15,8 @@ if [[ "${ECS_DEPLOY_IN_DOCKER:-}" != "1" ]] && { ! command -v aws >/dev/null 2>&
     if command -v docker >/dev/null 2>&1; then
         SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ecs-deploy.sh"
         echo "AWS CLI ou jq introuvable sur l'hôte — exécution via conteneur alpine"
-        exec docker run --rm --entrypoint sh \
+        # Pas de bind-mount : sous Jenkins-in-Docker le chemin n'existe pas sur l'hôte Docker.
+        exec docker run --rm -i --entrypoint sh \
             -e ECS_DEPLOY_IN_DOCKER=1 \
             -e AWS_ACCESS_KEY_ID \
             -e AWS_SECRET_ACCESS_KEY \
@@ -25,9 +26,9 @@ if [[ "${ECS_DEPLOY_IN_DOCKER:-}" != "1" ]] && { ! command -v aws >/dev/null 2>&
             -e ECS_SERVICE="$SERVICE" \
             -e IMAGE_NAME="$IMAGE_NAME" \
             -e IMAGE_TAG="$IMAGE_TAG" \
-            -v "${SCRIPT_PATH}:/ecs-deploy.sh:ro" \
             alpine:3.19 \
-            -c 'apk add --no-cache aws-cli jq bash >/dev/null 2>&1 && bash /ecs-deploy.sh'
+            -c 'apk add --no-cache aws-cli jq bash >/dev/null 2>&1 && exec bash -s' \
+            < "${SCRIPT_PATH}"
     fi
     command -v aws >/dev/null 2>&1 || { echo "AWS CLI introuvable"; exit 1; }
     command -v jq >/dev/null 2>&1 || { echo "jq introuvable (brew install jq / apt install jq)"; exit 1; }
