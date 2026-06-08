@@ -75,7 +75,7 @@ helm uninstall eventapp
 
 Le pipeline Jenkins inclut un stage **« Déploiement Kubernetes (Minikube) »** exécuté automatiquement sur les branches `master` / `main` (ou sur un tag Git), après le push Docker Hub.
 
-Prérequis sur l'agent Jenkins : **minikube**, **kubectl** et **helm**.
+Prérequis sur l'agent Jenkins : **Docker** (socket monté si Jenkins tourne dans Docker). Les binaires **minikube**, **kubectl** et **helm** sont installés automatiquement au premier déploiement si absents.
 
 Pour désactiver ce déploiement sur un job : `DEPLOY_MINIKUBE=false`.
 

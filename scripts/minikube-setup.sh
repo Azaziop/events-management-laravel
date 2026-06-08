@@ -1,25 +1,43 @@
 #!/usr/bin/env bash
-# Prépare Minikube pour EventApp (étape 5 — Kubernetes local).
+# Prépare Minikube pour EventApp (étape 5 — Kubernetes local / Jenkins).
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/k8s-tools.sh
+source "${SCRIPT_DIR}/k8s-tools.sh"
+
+k8s_setup_path
+
+if ! command -v minikube >/dev/null 2>&1 || ! command -v kubectl >/dev/null 2>&1 || ! command -v helm >/dev/null 2>&1; then
+    echo "=== Outils K8s absents — installation automatique ==="
+    install_k8s_tools_if_missing
+fi
+
 command -v minikube >/dev/null 2>&1 || {
-    echo "Minikube introuvable. Installez-le : https://minikube.sigs.k8s.io/docs/start/"
+    echo "Minikube introuvable après installation."
     exit 1
 }
 
 command -v kubectl >/dev/null 2>&1 || {
-    echo "kubectl introuvable."
+    echo "kubectl introuvable après installation."
     exit 1
 }
 
 command -v helm >/dev/null 2>&1 || {
-    echo "Helm introuvable. Installez-le : brew install helm"
+    echo "Helm introuvable après installation."
     exit 1
 }
 
-echo "=== Démarrage Minikube ==="
+MINIKUBE_CPUS="${MINIKUBE_CPUS:-2}"
+MINIKUBE_MEMORY="${MINIKUBE_MEMORY:-2048}"
+
+echo "=== Démarrage Minikube (driver=docker, cpus=${MINIKUBE_CPUS}, memory=${MINIKUBE_MEMORY}Mi) ==="
 if ! minikube status >/dev/null 2>&1; then
-    minikube start --driver=docker --cpus=4 --memory=4096
+    minikube start \
+        --driver=docker \
+        --cpus="${MINIKUBE_CPUS}" \
+        --memory="${MINIKUBE_MEMORY}" \
+        --force
 else
     echo "Minikube déjà démarré."
 fi

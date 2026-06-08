@@ -255,28 +255,31 @@ EOF
                 }
             }
             steps {
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'dockerhub-credentials',
-                        usernameVariable: 'DOCKERHUB_USERNAME',
-                        passwordVariable: 'DOCKERHUB_TOKEN'
-                    )
-                ]) {
-                    sh '''
-                        if echo "$DOCKERHUB_REPOSITORY" | grep -q '/'; then
-                            export IMAGE_NAME="$DOCKERHUB_REPOSITORY"
-                        else
-                            export IMAGE_NAME="$DOCKERHUB_USERNAME/$DOCKERHUB_REPOSITORY"
-                        fi
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    withCredentials([
+                        usernamePassword(
+                            credentialsId: 'dockerhub-credentials',
+                            usernameVariable: 'DOCKERHUB_USERNAME',
+                            passwordVariable: 'DOCKERHUB_TOKEN'
+                        )
+                    ]) {
+                        sh '''
+                            if echo "$DOCKERHUB_REPOSITORY" | grep -q '/'; then
+                                export IMAGE_NAME="$DOCKERHUB_REPOSITORY"
+                            else
+                                export IMAGE_NAME="$DOCKERHUB_USERNAME/$DOCKERHUB_REPOSITORY"
+                            fi
 
-                        export IMAGE_TAG="${TAG_NAME:-$IMAGE_TAG}"
-                        export HELM_RELEASE="${HELM_RELEASE:-eventapp}"
-                        export K8S_NAMESPACE="${K8S_NAMESPACE:-default}"
+                            export IMAGE_TAG="${TAG_NAME:-$IMAGE_TAG}"
+                            export HELM_RELEASE="${HELM_RELEASE:-eventapp}"
+                            export K8S_NAMESPACE="${K8S_NAMESPACE:-default}"
+                            export PATH="${HOME}/.local/bin:${PATH}"
 
-                        chmod +x scripts/minikube-setup.sh scripts/k8s-deploy.sh
-                        ./scripts/minikube-setup.sh
-                        ./scripts/k8s-deploy.sh
-                    '''
+                            chmod +x scripts/k8s-tools.sh scripts/minikube-setup.sh scripts/k8s-deploy.sh
+                            ./scripts/minikube-setup.sh
+                            ./scripts/k8s-deploy.sh
+                        '''
+                    }
                 }
             }
         }
