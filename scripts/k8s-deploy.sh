@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Déploie EventApp sur Minikube via Helm.
+# Déploie EventApp sur Kubernetes local (Minikube ou kind) via Helm.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -16,32 +16,32 @@ IMAGE_TAG="${IMAGE_TAG:?IMAGE_TAG requis (ex. 23-f681023)}"
 VALUES_FILE="${HELM_VALUES:-${CHART_DIR}/values.minikube.yaml}"
 
 if ! command -v helm >/dev/null 2>&1 || ! command -v kubectl >/dev/null 2>&1; then
-    echo "=== Outils K8s absents — installation automatique ==="
+    k8s_log_line "=== Outils K8s absents — installation automatique ==="
     install_k8s_tools_if_missing
 fi
 
 command -v helm >/dev/null 2>&1 || { echo "Helm introuvable"; exit 1; }
 command -v kubectl >/dev/null 2>&1 || { echo "kubectl introuvable"; exit 1; }
 
+if k8s_using_kind; then
+    k8s_fix_kind_kubeconfig "$(kind_cluster_name)" || true
+fi
+
 IMAGE_PULL_POLICY="Never"
 if k8s_is_ci; then
     IMAGE_PULL_POLICY="IfNotPresent"
 fi
 
-if command -v minikube >/dev/null 2>&1 && minikube status >/dev/null 2>&1; then
-    echo "=== Chargement de l'image dans Minikube : ${IMAGE_NAME}:${IMAGE_TAG} ==="
-    if docker image inspect "${IMAGE_NAME}:${IMAGE_TAG}" >/dev/null 2>&1; then
-        minikube image load "${IMAGE_NAME}:${IMAGE_TAG}" || {
-            echo "minikube image load a échoué ; pull depuis le registry (pullPolicy=${IMAGE_PULL_POLICY})."
-            IMAGE_PULL_POLICY="IfNotPresent"
-        }
-    else
-        echo "Image locale absente ; pull depuis le registry (pullPolicy=${IMAGE_PULL_POLICY})."
+if k8s_load_image_to_cluster "${IMAGE_NAME}:${IMAGE_TAG}"; then
+    if k8s_using_kind; then
         IMAGE_PULL_POLICY="IfNotPresent"
     fi
+else
+    k8s_log_line "Image locale absente ; pull depuis le registry (pullPolicy=${IMAGE_PULL_POLICY})."
+    IMAGE_PULL_POLICY="IfNotPresent"
 fi
 
-echo "=== Déploiement Helm : ${RELEASE} (namespace: ${NAMESPACE}) ==="
+k8s_log_line "=== Déploiement Helm : ${RELEASE} (namespace: ${NAMESPACE}) ==="
 helm upgrade --install "${RELEASE}" "${CHART_DIR}" \
     --namespace "${NAMESPACE}" \
     --create-namespace \
@@ -55,13 +55,8 @@ echo ""
 helm get notes "${RELEASE}" --namespace "${NAMESPACE}" 2>/dev/null || true
 
 echo ""
-echo "=== Statut des pods ==="
+k8s_log_line "=== Statut des pods ==="
 kubectl get pods -n "${NAMESPACE}" -l "app.kubernetes.io/instance=${RELEASE}" -o wide
 
-if command -v minikube >/dev/null 2>&1 && minikube status >/dev/null 2>&1; then
-    echo ""
-    echo "URL :"
-    minikube service "${RELEASE}-events-management" -n "${NAMESPACE}" --url 2>/dev/null \
-        || minikube service "${RELEASE}" -n "${NAMESPACE}" --url 2>/dev/null \
-        || echo "http://$(minikube ip):30080"
-fi
+echo ""
+k8s_log_line "URL : $(k8s_print_app_url "${RELEASE}" "${NAMESPACE}")"

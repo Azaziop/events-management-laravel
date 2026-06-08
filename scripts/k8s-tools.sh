@@ -41,6 +41,43 @@ k8s_install_tool() {
     chmod +x "$dest"
 }
 
+k8s_is_ci() {
+    [ -n "${JENKINS_URL:-}" ] || [ "${CI:-}" = "true" ]
+}
+
+k8s_is_docker_in_docker() {
+    [ -f /.dockerenv ] && [ -S /var/run/docker.sock ]
+}
+
+k8s_should_use_kind() {
+    if [ "${K8S_CLUSTER:-}" = "kind" ]; then
+        return 0
+    fi
+    if [ "${K8S_CLUSTER:-}" = "minikube" ]; then
+        return 1
+    fi
+    k8s_is_docker_in_docker
+}
+
+k8s_log_line() {
+    printf '%s %s\n' "$(date '+%H:%M:%S')" "$*"
+}
+
+install_kind_if_missing() {
+    k8s_setup_path
+    if command -v kind >/dev/null 2>&1; then
+        return 0
+    fi
+    local os arch bin_dir kind_ver
+    os="$(k8s_detect_os)"
+    arch="$(k8s_detect_arch)"
+    bin_dir="$(k8s_bin_dir)"
+    kind_ver="v0.26.0"
+    k8s_install_tool kind \
+        "https://kind.sigs.k8s.io/dl/${kind_ver}/kind-${os}-${arch}" \
+        "${bin_dir}/kind"
+}
+
 install_k8s_tools_if_missing() {
     k8s_setup_path
 
@@ -50,7 +87,7 @@ install_k8s_tools_if_missing() {
     bin_dir="$(k8s_bin_dir)"
 
     if ! command -v curl >/dev/null 2>&1; then
-        echo "curl est requis pour installer kubectl / helm / minikube." >&2
+        echo "curl est requis pour installer kubectl / helm / kind / minikube." >&2
         return 1
     fi
 
@@ -74,7 +111,9 @@ install_k8s_tools_if_missing() {
         rm -rf "$tmp_dir"
     fi
 
-    if ! command -v minikube >/dev/null 2>&1; then
+    if k8s_should_use_kind; then
+        install_kind_if_missing
+    elif ! command -v minikube >/dev/null 2>&1; then
         k8s_install_tool minikube \
             "https://storage.googleapis.com/minikube/releases/latest/minikube-${os}-${arch}" \
             "${bin_dir}/minikube"
@@ -83,15 +122,128 @@ install_k8s_tools_if_missing() {
     echo "=== Versions des outils K8s ==="
     kubectl version --client --short 2>/dev/null || kubectl version --client
     helm version --short 2>/dev/null || helm version
-    minikube version --short 2>/dev/null || minikube version
+    if command -v kind >/dev/null 2>&1; then
+        kind version
+    fi
+    if command -v minikube >/dev/null 2>&1; then
+        minikube version --short 2>/dev/null || minikube version
+    fi
 }
 
-k8s_is_ci() {
-    [ -n "${JENKINS_URL:-}" ] || [ "${CI:-}" = "true" ]
+kind_cluster_name() {
+    echo "${KIND_CLUSTER_NAME:-eventapp}"
 }
 
-k8s_log_line() {
-    printf '%s %s\n' "$(date '+%H:%M:%S')" "$*"
+k8s_fix_kind_kubeconfig() {
+    local cluster="${1:-$(kind_cluster_name)}"
+    local container="${cluster}-control-plane"
+    local ip
+
+    ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$container" 2>/dev/null || true)"
+    if [ -z "$ip" ]; then
+        k8s_log_line "Impossible de résoudre l'IP du nœud kind — kubeconfig inchangé."
+        return 1
+    fi
+
+    k8s_log_line "kubectl → https://${ip}:6443 (kind/${cluster})"
+    kubectl config set-cluster "kind-${cluster}" \
+        --server="https://${ip}:6443" \
+        --insecure-skip-tls-verify=true
+    kubectl config use-context "kind-${cluster}"
+}
+
+k8s_cleanup_broken_minikube() {
+    if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx minikube; then
+        k8s_log_line "Suppression du conteneur minikube (incompatible Jenkins-in-Docker)..."
+        docker rm -f minikube 2>/dev/null || true
+    fi
+    if command -v minikube >/dev/null 2>&1; then
+        minikube delete -p minikube --purge 2>/dev/null || true
+    fi
+}
+
+kind_setup_cluster() {
+    local cluster node_port config_file
+    cluster="$(kind_cluster_name)"
+    node_port="${KIND_NODE_PORT:-30080}"
+
+    install_k8s_tools_if_missing
+    command -v kind >/dev/null 2>&1 || { echo "kind introuvable"; return 1; }
+
+    if kubectl cluster-info --context "kind-${cluster}" >/dev/null 2>&1; then
+        k8s_log_line "Cluster kind/${cluster} déjà opérationnel."
+        k8s_fix_kind_kubeconfig "$cluster" || true
+        kubectl cluster-info --context "kind-${cluster}"
+        return 0
+    fi
+
+    k8s_cleanup_broken_minikube
+
+    config_file="$(mktemp)"
+    cat > "$config_file" <<EOF
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: ${node_port}
+        hostPort: ${node_port}
+        protocol: TCP
+EOF
+
+    k8s_log_line "=== Création du cluster kind (${cluster}) — 2 à 5 min au premier lancement ==="
+    kind create cluster --name "$cluster" --config "$config_file" --wait 5m
+    rm -f "$config_file"
+
+    k8s_fix_kind_kubeconfig "$cluster"
+    kubectl cluster-info --context "kind-${cluster}"
+}
+
+k8s_using_kind() {
+    kubectl config current-context 2>/dev/null | grep -qE '^kind-'
+}
+
+k8s_load_image_to_cluster() {
+    local image_ref="$1"
+    local cluster
+
+    if k8s_using_kind; then
+        cluster="$(kind_cluster_name)"
+        k8s_log_line "=== Chargement de l'image dans kind : ${image_ref} ==="
+        if docker image inspect "${image_ref}" >/dev/null 2>&1; then
+            kind load docker-image "${image_ref}" --name "$cluster"
+            return 0
+        fi
+        return 1
+    fi
+
+    if command -v minikube >/dev/null 2>&1 && minikube status >/dev/null 2>&1; then
+        k8s_log_line "=== Chargement de l'image dans Minikube : ${image_ref} ==="
+        if docker image inspect "${image_ref}" >/dev/null 2>&1; then
+            minikube image load "${image_ref}"
+            return 0
+        fi
+        return 1
+    fi
+
+    return 1
+}
+
+k8s_print_app_url() {
+    local release="${1:-eventapp}"
+    local namespace="${2:-default}"
+    local node_port="${KIND_NODE_PORT:-30080}"
+
+    if k8s_using_kind; then
+        echo "http://localhost:${node_port}"
+        return 0
+    fi
+
+    if command -v minikube >/dev/null 2>&1 && minikube status >/dev/null 2>&1; then
+        minikube service "${release}-events-management" -n "${namespace}" --url 2>/dev/null \
+            || minikube service "${release}" -n "${namespace}" --url 2>/dev/null \
+            || echo "http://$(minikube ip):${node_port}"
+    fi
 }
 
 minikube_profile_exists() {
@@ -159,6 +311,7 @@ minikube_start_with_progress() {
 
     k8s_log_line "Échec au démarrage — suppression du profil minikube et nouvelle tentative..."
     minikube delete -p minikube --purge 2>/dev/null || true
+    docker rm -f minikube 2>/dev/null || true
 
     local -a fresh_args=()
     local arg skip_version=false
@@ -179,4 +332,46 @@ minikube_start_with_progress() {
     fi
 
     _minikube_run_start "${fresh_args[@]}"
+}
+
+minikube_setup_cluster() {
+    local minikube_cpus minikube_memory minikube_wait_timeout
+    minikube_cpus="${MINIKUBE_CPUS:-2}"
+    minikube_memory="${MINIKUBE_MEMORY:-2048}"
+    minikube_wait_timeout="${MINIKUBE_WAIT_TIMEOUT:-15m}"
+
+    declare -a start_args=(
+        --driver=docker
+        --cpus="${minikube_cpus}"
+        --memory="${minikube_memory}"
+        --wait=all
+        --wait-timeout="${minikube_wait_timeout}"
+        --force
+    )
+
+    local k8s_version=""
+    if minikube_profile_exists minikube; then
+        k8s_version="$(minikube_profile_k8s_version minikube || true)"
+        if [ -n "$k8s_version" ]; then
+            k8s_log_line "=== Démarrage Minikube (driver=docker, k8s=${k8s_version}, cpus=${minikube_cpus}, memory=${minikube_memory}Mi) ==="
+            start_args+=(--kubernetes-version="${k8s_version}")
+        else
+            k8s_log_line "=== Démarrage Minikube (driver=docker, profil existant, cpus=${minikube_cpus}, memory=${minikube_memory}Mi) ==="
+        fi
+    elif [ -n "${MINIKUBE_K8S_VERSION:-}" ]; then
+        k8s_log_line "=== Démarrage Minikube (driver=docker, k8s=${MINIKUBE_K8S_VERSION}, cpus=${minikube_cpus}, memory=${minikube_memory}Mi) ==="
+        start_args+=(--kubernetes-version="${MINIKUBE_K8S_VERSION}")
+    else
+        k8s_log_line "=== Démarrage Minikube (driver=docker, cpus=${minikube_cpus}, memory=${minikube_memory}Mi) ==="
+    fi
+
+    minikube_start_with_progress "${start_args[@]}"
+
+    k8s_log_line "=== Activation des addons ==="
+    minikube addons enable storage-provisioner
+    minikube addons enable default-storageclass
+
+    k8s_log_line "=== Contexte kubectl ==="
+    kubectl config use-context minikube
+    kubectl cluster-info
 }

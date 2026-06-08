@@ -241,7 +241,7 @@ EOF
             }
         }
 
-        stage('Déploiement Kubernetes (Minikube)') {
+        stage('Déploiement Kubernetes') {
             options {
                 timeout(time: 25, unit: 'MINUTES')
             }

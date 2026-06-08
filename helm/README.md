@@ -73,13 +73,17 @@ helm uninstall eventapp
 
 ## 5. CI/CD Jenkins
 
-Le pipeline Jenkins inclut un stage **« Déploiement Kubernetes (Minikube) »** exécuté automatiquement sur les branches `master` / `main` (ou sur un tag Git), après le push Docker Hub.
+Le pipeline Jenkins inclut un stage **« Déploiement Kubernetes »** exécuté automatiquement sur les branches `master` / `main` (ou sur un tag Git), après le push Docker Hub.
 
-Prérequis sur l'agent Jenkins : **Docker** (socket monté si Jenkins tourne dans Docker). Les binaires **minikube**, **kubectl** et **helm** sont installés automatiquement au premier déploiement si absents.
+**Jenkins-in-Docker :** Minikube ne fonctionne pas (SSH sur localhost de l'hôte). Le pipeline utilise automatiquement **kind** à la place.
 
-**Premier build :** le téléchargement de Kubernetes par Minikube peut prendre **10 à 15 minutes** (normal). Les builds suivants réutilisent le cluster dans `~/.minikube` et sont beaucoup plus rapides.
+**Développement local (Mac) :** Minikube reste le choix par défaut via `./scripts/minikube-setup.sh`.
 
-Pour désactiver ce déploiement sur un job : `DEPLOY_MINIKUBE=false`.
+Prérequis sur l'agent Jenkins : **Docker** avec le socket monté (`-v /var/run/docker.sock:/var/run/docker.sock`). Les binaires sont installés automatiquement.
+
+**Premier build :** création du cluster kind (~2–5 min). Les builds suivants réutilisent le cluster.
+
+Pour forcer le mode : `K8S_CLUSTER=kind` ou `K8S_CLUSTER=minikube`. Pour désactiver : `DEPLOY_MINIKUBE=false`.
 
 ## Fichiers du chart
 
