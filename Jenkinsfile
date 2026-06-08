@@ -1,5 +1,5 @@
 pipeline {
-    agent any
+    agent none
 
     environment {
         DOCKERHUB_REPOSITORY = 'event-management1'
@@ -15,43 +15,81 @@ pipeline {
     }
 
     stages {
+        stage('Vérification Docker') {
+            agent any
+            steps {
+                script {
+                    def dockerAvailable = sh(
+                        script: 'command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1',
+                        returnStatus: true
+                    ) == 0
+
+                    if (!dockerAvailable) {
+                        error '''Docker n''est pas disponible sur cet agent Jenkins.
+
+Installez Docker sur le nœud Jenkins (obligatoire pour ce pipeline) :
+
+  Si Jenkins tourne dans Docker, relancez-le avec :
+    -v /var/run/docker.sock:/var/run/docker.sock
+
+  Puis, dans le conteneur Jenkins :
+    apt-get update && apt-get install -y docker.io
+    usermod -aG docker jenkins
+
+  Redémarrez Jenkins et relancez le pipeline.'''
+                    }
+                }
+            }
+        }
+
         stage('Build automatique de l\'application') {
+            agent {
+                docker {
+                    image 'node:20-alpine'
+                    reuseNode true
+                }
+            }
             steps {
                 sh '''
                     find app bootstrap config database public resources routes tests -type f \
                         \\( -name "* 2.*" -o -name "* 3.*" \\) -delete 2>/dev/null || true
 
-                    docker run --rm -v "$PWD:/app" -w /app node:20-alpine sh -c "
-                        npm ci
-                        npm run build
-                    "
+                    npm ci
+                    npm run build
+                '''
+            }
+        }
 
-                    docker run --rm -v "$PWD:/app" -w /app php:8.2-cli bash -c "
-                        apt-get update -qq
-                        apt-get install -y -qq git unzip libzip-dev libsqlite3-dev curl
-                        docker-php-ext-install pdo pdo_sqlite zip
-                        curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
-                        composer install --prefer-dist --no-interaction --no-progress
-                        php artisan --version
-                    "
+        stage('Installation des dépendances PHP') {
+            agent {
+                docker {
+                    image 'composer:2'
+                    reuseNode true
+                    args '-u root:root'
+                }
+            }
+            steps {
+                sh '''
+                    composer install --prefer-dist --no-interaction --no-progress --no-scripts
+                    php artisan --version
                 '''
             }
         }
 
         stage('Exécution des tests (si disponibles)') {
+            agent {
+                docker {
+                    image 'composer:2'
+                    reuseNode true
+                    args '-u root:root'
+                }
+            }
             steps {
                 sh '''
                     if [ -d tests ] && [ -f phpunit.xml ]; then
-                        docker run --rm -v "$PWD:/app" -w /app php:8.2-cli bash -c "
-                            apt-get update -qq
-                            apt-get install -y -qq git unzip libzip-dev libsqlite3-dev curl
-                            docker-php-ext-install pdo pdo_sqlite zip
-                            curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
-                            cp .env.example .env
-                            composer install --prefer-dist --no-interaction --no-progress
-                            php artisan key:generate
-                            php artisan test
-                        "
+                        cp -n .env.example .env 2>/dev/null || true
+                        php artisan key:generate --force
+                        php artisan test
                     else
                         echo "Aucun test disponible, étape ignorée."
                     fi
@@ -60,10 +98,17 @@ pipeline {
         }
 
         stage('Vérification de la qualité du code') {
+            agent {
+                docker {
+                    image 'composer:2'
+                    reuseNode true
+                    args '-u root:root'
+                }
+            }
             steps {
                 sh '''
                     if [ -f vendor/bin/pint ]; then
-                        docker run --rm -v "$PWD:/app" -w /app php:8.2-cli ./vendor/bin/pint --test
+                        ./vendor/bin/pint --test
                     else
                         echo "Laravel Pint non disponible, étape ignorée."
                     fi
@@ -72,6 +117,7 @@ pipeline {
         }
 
         stage('Construction des images Docker') {
+            agent any
             steps {
                 sh """
                     docker build --pull -t ${LOCAL_IMAGE} .
@@ -89,6 +135,7 @@ pipeline {
                     expression { return env.TAG_NAME != null }
                 }
             }
+            agent any
             steps {
                 withCredentials([
                     usernamePassword(
@@ -123,6 +170,7 @@ pipeline {
                     expression { return env.TAG_NAME != null }
                 }
             }
+            agent any
             steps {
                 withCredentials([
                     usernamePassword(
@@ -155,6 +203,7 @@ pipeline {
                     expression { return env.TAG_NAME != null }
                 }
             }
+            agent any
             steps {
                 withCredentials([
                     usernamePassword(
@@ -171,18 +220,18 @@ pipeline {
                         fi
 
                         cat > deploy.env <<EOF
-IMAGE_NAME=\$IMAGE_NAME
-IMAGE_TAG=\${TAG_NAME:-\$IMAGE_TAG}
-DEPLOY_ENV=\${BRANCH_NAME:-production}
-BUILD_NUMBER=\${BUILD_NUMBER}
-GIT_COMMIT=\${GIT_COMMIT}
+IMAGE_NAME=$IMAGE_NAME
+IMAGE_TAG=${TAG_NAME:-$IMAGE_TAG}
+DEPLOY_ENV=${BRANCH_NAME:-production}
+BUILD_NUMBER=${BUILD_NUMBER}
+GIT_COMMIT=${GIT_COMMIT}
 EOF
 
                         echo "=== Manifeste de déploiement ==="
                         cat deploy.env
                         echo ""
                         echo "=== Commandes de déploiement suggérées ==="
-                        echo "docker pull \$IMAGE_NAME:\${TAG_NAME:-\$IMAGE_TAG}"
+                        echo "docker pull $IMAGE_NAME:${TAG_NAME:-$IMAGE_TAG}"
                         echo "docker compose -f docker-compose.prod.yml up -d"
                     '''
                 }
@@ -199,7 +248,7 @@ EOF
             echo 'Pipeline CI/CD en échec.'
         }
         always {
-            sh 'docker logout || true'
+            sh 'command -v docker >/dev/null 2>&1 && docker logout || true'
         }
     }
 }
