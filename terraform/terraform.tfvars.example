@@ -1,0 +1,21 @@
+aws_region      = "eu-west-3"
+project_name    = "event-management"
+environment     = "production"
+
+# Générer avec : php artisan key:generate --show
+app_key         = "base64:REMPLACER_PAR_VOTRE_CLE_LARAVEL"
+
+# Mot de passe fort pour RDS
+db_password     = "REMPLACER_PAR_UN_MOT_DE_PASSE_FORT"
+
+# Image Docker Hub (poussée par Jenkins)
+docker_image     = "azaziop/event-management1"
+docker_image_tag = "16-68b4bdb"
+
+# Laisser http://localhost : Terraform utilisera automatiquement le DNS de l'ALB
+app_url = "http://localhost"
+
+# ECS Fargate (ARM64 — même arch que l'image Jenkins sur Mac Apple Silicon)
+ecs_desired_count = 1
+ecs_task_cpu      = "512"
+ecs_task_memory   = "1024"
