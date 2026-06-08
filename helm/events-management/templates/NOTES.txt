@@ -1,0 +1,22 @@
+EventApp déployé sur Kubernetes !
+
+1. Vérifier les pods :
+   kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+2. Accéder à l'application :
+{{- if eq .Values.service.type "NodePort" }}
+   minikube service {{ include "events-management.fullname" . }} -n {{ .Release.Namespace }} --url
+   # ou directement : http://$(minikube ip):{{ .Values.service.nodePort }}
+{{- else if .Values.ingress.enabled }}
+   http://{{ .Values.ingress.host }}
+{{- else }}
+   kubectl port-forward svc/{{ include "events-management.fullname" . }} 8080:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+   # puis http://localhost:8080
+{{- end }}
+
+3. Identifiants admin (après migration) :
+   Email    : admin@example.com
+   Password : secret
+
+4. Logs backend :
+   kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/component=app -c backend -f

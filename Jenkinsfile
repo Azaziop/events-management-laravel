@@ -241,6 +241,46 @@ EOF
             }
         }
 
+        stage('Déploiement Kubernetes (Minikube)') {
+            when {
+                expression {
+                    if (env.DEPLOY_MINIKUBE == 'false') {
+                        return false
+                    }
+                    if (env.TAG_NAME?.trim()) {
+                        return true
+                    }
+                    def branch = (env.BRANCH_NAME ?: env.GIT_BRANCH ?: '').replaceFirst(/^origin\//, '').trim()
+                    return branch in ['master', 'main']
+                }
+            }
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'dockerhub-credentials',
+                        usernameVariable: 'DOCKERHUB_USERNAME',
+                        passwordVariable: 'DOCKERHUB_TOKEN'
+                    )
+                ]) {
+                    sh '''
+                        if echo "$DOCKERHUB_REPOSITORY" | grep -q '/'; then
+                            export IMAGE_NAME="$DOCKERHUB_REPOSITORY"
+                        else
+                            export IMAGE_NAME="$DOCKERHUB_USERNAME/$DOCKERHUB_REPOSITORY"
+                        fi
+
+                        export IMAGE_TAG="${TAG_NAME:-$IMAGE_TAG}"
+                        export HELM_RELEASE="${HELM_RELEASE:-eventapp}"
+                        export K8S_NAMESPACE="${K8S_NAMESPACE:-default}"
+
+                        chmod +x scripts/minikube-setup.sh scripts/k8s-deploy.sh
+                        ./scripts/minikube-setup.sh
+                        ./scripts/k8s-deploy.sh
+                    '''
+                }
+            }
+        }
+
         stage('Déploiement ECS (AWS)') {
             when {
                 expression {

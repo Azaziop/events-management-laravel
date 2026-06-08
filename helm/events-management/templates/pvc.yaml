@@ -1,0 +1,29 @@
+{{- if .Values.persistence.storage.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "events-management.fullname" . }}-storage
+  labels:
+    {{- include "events-management.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.persistence.storage.size }}
+{{- end }}
+---
+{{- if and .Values.database.enabled .Values.persistence.postgres.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "events-management.fullname" . }}-postgres
+  labels:
+    {{- include "events-management.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.persistence.postgres.size }}
+{{- end }}

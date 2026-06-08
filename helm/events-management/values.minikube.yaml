@@ -1,0 +1,14 @@
+# Overrides pour Minikube local
+image:
+  pullPolicy: Never  # Image chargée via minikube image load
+
+service:
+  type: NodePort
+  nodePort: 30080
+
+app:
+  url: http://localhost:30080
+  key: "base64:rbGIsL8uU8/3y4L1+/PlovA+Rr2efZKzY3YrLLxdPdA="
+
+database:
+  password: secret

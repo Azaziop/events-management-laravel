@@ -1,0 +1,50 @@
+# Image backend (Docker Hub ou image locale Minikube)
+image:
+  repository: azaziop/event-management1
+  tag: latest
+  pullPolicy: IfNotPresent
+
+nginx:
+  image: nginx:alpine
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+service:
+  type: NodePort
+  port: 80
+  nodePort: 30080
+
+ingress:
+  enabled: false
+  className: nginx
+  host: eventapp.local
+  annotations: {}
+
+app:
+  env: production
+  url: http://localhost:30080
+  key: ""  # Obligatoire : base64:... (voir values.minikube.yaml)
+
+database:
+  enabled: true
+  host: ""  # Auto : <release>-postgres
+  port: 5432
+  name: events_db
+  user: postgres
+  password: secret
+
+resources:
+  app: {}
+  postgres: {}
+
+persistence:
+  storage:
+    enabled: true
+    size: 1Gi
+  postgres:
+    enabled: true
+    size: 1Gi
+
+nameOverride: ""
+fullnameOverride: ""

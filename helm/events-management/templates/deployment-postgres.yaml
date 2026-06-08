@@ -1,0 +1,53 @@
+{{- if .Values.database.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "events-management.fullname" . }}-postgres
+  labels:
+    {{- include "events-management.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "events-management.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: postgres
+  template:
+    metadata:
+      labels:
+        {{- include "events-management.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: {{ .Values.database.name | quote }}
+            - name: POSTGRES_USER
+              value: {{ .Values.database.user | quote }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "events-management.fullname" . }}
+                  key: DB_PASSWORD
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            {{- toYaml .Values.resources.postgres | nindent 12 }}
+      volumes:
+        - name: data
+          {{- if .Values.persistence.postgres.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "events-management.fullname" . }}-postgres
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+{{- end }}
