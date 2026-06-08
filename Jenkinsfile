@@ -258,7 +258,13 @@ EOF
                         usernameVariable: 'DOCKERHUB_USERNAME',
                         passwordVariable: 'DOCKERHUB_TOKEN'
                     ),
-                    [$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials']
+                    // Username = AWS_ACCESS_KEY_ID, Password = AWS_SECRET_ACCESS_KEY
+                    // (pas besoin du plugin AmazonWebServicesCredentialsBinding)
+                    usernamePassword(
+                        credentialsId: 'aws-credentials',
+                        usernameVariable: 'AWS_ACCESS_KEY_ID',
+                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                    )
                 ]) {
                     sh '''
                         if echo "$DOCKERHUB_REPOSITORY" | grep -q '/'; then

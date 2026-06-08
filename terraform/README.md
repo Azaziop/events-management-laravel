@@ -112,7 +112,7 @@ Le pipeline Jenkins pousse l'image sur Docker Hub puis déploie sur ECS via `scr
 | ID | Type | Usage |
 |----|------|-------|
 | `dockerhub-credentials` | Username/Password | Push image |
-| `aws-credentials` | AWS Credentials | Déploiement ECS |
+| `aws-credentials` | Username/Password (username = Access Key ID, password = Secret Access Key) | Déploiement ECS |
 
 ### IAM pour Jenkins (utilisateur ou rôle)
 
