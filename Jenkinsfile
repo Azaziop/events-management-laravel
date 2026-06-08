@@ -47,23 +47,19 @@ Installez Docker sur le nœud Jenkins (obligatoire pour ce pipeline) :
                     find app bootstrap config database public resources routes tests -type f \
                         \\( -name "* 2.*" -o -name "* 3.*" \\) -delete 2>/dev/null || true
 
-                    mkdir -p public/build
-
                     # Envoi du code via tar (compatible Jenkins-in-Docker sur Mac)
-                    # Seuls les artefacts sont renvoyés sur stdout pour éviter la corruption du flux
+                    # Pas de retour tar : docker build reconstruit les artefacts via le Dockerfile
                     tar -C "$WORKSPACE" -cf - . | docker run --rm -i -w /app node:20-alpine sh -c '
                         tar -xf - -C /app
                         npm ci || npm install
-                        npm run build >&2
-                        tar -C /app/public -cf - build
-                    ' | tar -C "$WORKSPACE/public" -xf -
+                        npm run build
+                    '
 
                     tar -C "$WORKSPACE" -cf - . | docker run --rm -i -w /app composer:2 sh -c '
                         tar -xf - -C /app
-                        composer install --prefer-dist --no-interaction --no-progress >&2
-                        php artisan --version >&2
-                        tar -C /app/vendor -cf - .
-                    ' | tar -C "$WORKSPACE" -xf -
+                        composer install --prefer-dist --no-interaction --no-progress
+                        php artisan --version
+                    '
                 '''
             }
         }
@@ -74,8 +70,9 @@ Installez Docker sur le nœud Jenkins (obligatoire pour ce pipeline) :
                     if [ -d tests ] && [ -f phpunit.xml ]; then
                         tar -C "$WORKSPACE" -cf - . | docker run --rm -i -w /app composer:2 sh -c '
                             tar -xf - -C /app
+                            composer install --prefer-dist --no-interaction --no-progress
                             cp -n .env.example .env 2>/dev/null || true
-                            php artisan key:generate --force >&2
+                            php artisan key:generate --force
                             php artisan test
                         '
                     else
@@ -88,14 +85,15 @@ Installez Docker sur le nœud Jenkins (obligatoire pour ce pipeline) :
         stage('Vérification de la qualité du code') {
             steps {
                 sh '''
-                    if [ -f vendor/bin/pint ]; then
-                        tar -C "$WORKSPACE" -cf - . | docker run --rm -i -w /app composer:2 sh -c '
-                            tar -xf - -C /app
+                    tar -C "$WORKSPACE" -cf - . | docker run --rm -i -w /app composer:2 sh -c '
+                        tar -xf - -C /app
+                        composer install --prefer-dist --no-interaction --no-progress
+                        if [ -f vendor/bin/pint ]; then
                             ./vendor/bin/pint --test
-                        '
-                    else
-                        echo "Laravel Pint non disponible, étape ignorée."
-                    fi
+                        else
+                            echo "Laravel Pint non disponible, étape ignorée."
+                        fi
+                    '
                 '''
             }
         }
