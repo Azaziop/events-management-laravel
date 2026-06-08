@@ -55,7 +55,7 @@ Installez Docker sur le nœud Jenkins (obligatoire pour ce pipeline) :
                         npm run build
                     '
 
-                    tar -C "$WORKSPACE" -cf - . | docker run --rm -i -w /app composer:2 sh -c '
+                    tar -C "$WORKSPACE" -cf - . | docker run --rm -i -w /app composer:2-php8.2 sh -c '
                         tar -xf - -C /app
                         composer install --prefer-dist --no-interaction --no-progress
                         php artisan --version
@@ -68,7 +68,7 @@ Installez Docker sur le nœud Jenkins (obligatoire pour ce pipeline) :
             steps {
                 sh '''
                     if [ -d tests ] && [ -f phpunit.xml ]; then
-                        tar -C "$WORKSPACE" -cf - . | docker run --rm -i -w /app composer:2 sh -c '
+                        tar -C "$WORKSPACE" -cf - . | docker run --rm -i -w /app composer:2-php8.2 sh -c '
                             tar -xf - -C /app
                             composer install --prefer-dist --no-interaction --no-progress
                             cp -n .env.example .env 2>/dev/null || true
@@ -85,7 +85,7 @@ Installez Docker sur le nœud Jenkins (obligatoire pour ce pipeline) :
         stage('Vérification de la qualité du code') {
             steps {
                 sh '''
-                    tar -C "$WORKSPACE" -cf - . | docker run --rm -i -w /app composer:2 sh -c '
+                    tar -C "$WORKSPACE" -cf - . | docker run --rm -i -w /app composer:2-php8.2 sh -c '
                         tar -xf - -C /app
                         composer install --prefer-dist --no-interaction --no-progress
                         if [ -f vendor/bin/pint ]; then

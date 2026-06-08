@@ -4,7 +4,7 @@ COPY package*.json ./
 RUN npm install
 COPY . .
 RUN npm run build
-FROM composer:2 AS vendor-builder
+FROM composer:2-php8.2 AS vendor-builder
 WORKDIR /app
 COPY composer.json composer.lock ./
 RUN composer install --ignore-platform-reqs --no-interaction --no-plugins --no-scripts --prefer-dist
