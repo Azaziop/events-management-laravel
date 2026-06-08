@@ -94,24 +94,36 @@ k8s_log_line() {
     printf '%s %s\n' "$(date '+%H:%M:%S')" "$*"
 }
 
-minikube_start_with_progress() {
+minikube_profile_exists() {
+    local profile="${1:-minikube}"
+    [ -d "${HOME}/.minikube/profiles/${profile}" ] \
+        || minikube profile list 2>/dev/null | awk '{print $1}' | grep -qx "${profile}"
+}
+
+minikube_profile_k8s_version() {
+    local profile="${1:-minikube}"
+    local config="${HOME}/.minikube/profiles/${profile}/config.json"
+
+    if [ -f "$config" ]; then
+        if command -v python3 >/dev/null 2>&1; then
+            python3 -c "
+import json, sys
+data = json.load(open(sys.argv[1]))
+print(data.get('KubernetesConfig', {}).get('KubernetesVersion', ''))
+" "$config" 2>/dev/null && return 0
+        fi
+        grep -o '"KubernetesVersion"[[:space:]]*:[[:space:]]*"v[^"]*"' "$config" \
+            | head -1 \
+            | sed 's/.*"\(v[^"]*\)".*/\1/'
+    fi
+}
+
+_minikube_run_start() {
     local -a args=("$@")
-
-    if minikube status -p minikube >/dev/null 2>&1; then
-        k8s_log_line "Minikube déjà démarré — réutilisation du cluster existant."
-        return 0
-    fi
-
-    if minikube profile list 2>/dev/null | grep -q 'minikube'; then
-        k8s_log_line "Profil Minikube existant — redémarrage sans re-téléchargement complet."
-    else
-        k8s_log_line "Premier démarrage : téléchargement Kubernetes (~300 Mo)."
-        k8s_log_line "Comptez 10 à 15 min. Les builds suivants seront bien plus rapides."
-    fi
+    local exit_code=0
 
     export MINIKUBE_IN_STYLE=false
 
-    local exit_code=0
     if command -v stdbuf >/dev/null 2>&1; then
         set +o pipefail
         stdbuf -oL -eL minikube start "${args[@]}" --alsologtostderr -v=1 2>&1 | while IFS= read -r line; do
@@ -124,4 +136,47 @@ minikube_start_with_progress() {
     fi
 
     return "$exit_code"
+}
+
+minikube_start_with_progress() {
+    local -a args=("$@")
+
+    if minikube status -p minikube >/dev/null 2>&1; then
+        k8s_log_line "Minikube déjà démarré — réutilisation du cluster existant."
+        return 0
+    fi
+
+    if minikube_profile_exists minikube; then
+        k8s_log_line "Profil Minikube existant — redémarrage sans re-téléchargement complet."
+    else
+        k8s_log_line "Premier démarrage : téléchargement Kubernetes (~300 Mo)."
+        k8s_log_line "Comptez 10 à 15 min. Les builds suivants seront bien plus rapides."
+    fi
+
+    if _minikube_run_start "${args[@]}"; then
+        return 0
+    fi
+
+    k8s_log_line "Échec au démarrage — suppression du profil minikube et nouvelle tentative..."
+    minikube delete -p minikube --purge 2>/dev/null || true
+
+    local -a fresh_args=()
+    local arg skip_version=false
+    for arg in "${args[@]}"; do
+        if $skip_version; then
+            skip_version=false
+            continue
+        fi
+        if [ "$arg" = "--kubernetes-version" ]; then
+            skip_version=true
+            continue
+        fi
+        fresh_args+=("$arg")
+    done
+
+    if [ -n "${MINIKUBE_K8S_VERSION:-}" ]; then
+        fresh_args+=(--kubernetes-version="${MINIKUBE_K8S_VERSION}")
+    fi
+
+    _minikube_run_start "${fresh_args[@]}"
 }

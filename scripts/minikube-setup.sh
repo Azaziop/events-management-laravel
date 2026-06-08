@@ -30,19 +30,34 @@ command -v helm >/dev/null 2>&1 || {
 
 MINIKUBE_CPUS="${MINIKUBE_CPUS:-2}"
 MINIKUBE_MEMORY="${MINIKUBE_MEMORY:-2048}"
-MINIKUBE_K8S_VERSION="${MINIKUBE_K8S_VERSION:-v1.30.5}"
 MINIKUBE_WAIT_TIMEOUT="${MINIKUBE_WAIT_TIMEOUT:-15m}"
 
-k8s_log_line "=== Démarrage Minikube (driver=docker, k8s=${MINIKUBE_K8S_VERSION}, cpus=${MINIKUBE_CPUS}, memory=${MINIKUBE_MEMORY}Mi) ==="
-
-minikube_start_with_progress \
-    --driver=docker \
-    --cpus="${MINIKUBE_CPUS}" \
-    --memory="${MINIKUBE_MEMORY}" \
-    --kubernetes-version="${MINIKUBE_K8S_VERSION}" \
-    --wait=all \
-    --wait-timeout="${MINIKUBE_WAIT_TIMEOUT}" \
+declare -a START_ARGS=(
+    --driver=docker
+    --cpus="${MINIKUBE_CPUS}"
+    --memory="${MINIKUBE_MEMORY}"
+    --wait=all
+    --wait-timeout="${MINIKUBE_WAIT_TIMEOUT}"
     --force
+)
+
+K8S_VERSION=""
+if minikube_profile_exists minikube; then
+    K8S_VERSION="$(minikube_profile_k8s_version minikube || true)"
+    if [ -n "$K8S_VERSION" ]; then
+        k8s_log_line "=== Démarrage Minikube (driver=docker, k8s=${K8S_VERSION}, cpus=${MINIKUBE_CPUS}, memory=${MINIKUBE_MEMORY}Mi) ==="
+        START_ARGS+=(--kubernetes-version="${K8S_VERSION}")
+    else
+        k8s_log_line "=== Démarrage Minikube (driver=docker, profil existant, cpus=${MINIKUBE_CPUS}, memory=${MINIKUBE_MEMORY}Mi) ==="
+    fi
+elif [ -n "${MINIKUBE_K8S_VERSION:-}" ]; then
+    k8s_log_line "=== Démarrage Minikube (driver=docker, k8s=${MINIKUBE_K8S_VERSION}, cpus=${MINIKUBE_CPUS}, memory=${MINIKUBE_MEMORY}Mi) ==="
+    START_ARGS+=(--kubernetes-version="${MINIKUBE_K8S_VERSION}")
+else
+    k8s_log_line "=== Démarrage Minikube (driver=docker, cpus=${MINIKUBE_CPUS}, memory=${MINIKUBE_MEMORY}Mi) ==="
+fi
+
+minikube_start_with_progress "${START_ARGS[@]}"
 
 k8s_log_line "=== Activation des addons ==="
 minikube addons enable storage-provisioner
