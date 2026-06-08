@@ -48,12 +48,14 @@ Installez Docker sur le nœud Jenkins (obligatoire pour ce pipeline) :
                         \\( -name "* 2.*" -o -name "* 3.*" \\) -delete 2>/dev/null || true
 
                     # Envoi du code via tar (compatible Jenkins-in-Docker sur Mac)
-                    # Pas de retour tar : docker build reconstruit les artefacts via le Dockerfile
+                    mkdir -p "$WORKSPACE/public/build"
                     tar -C "$WORKSPACE" -cf - . | docker run --rm -i -w /app node:20-alpine sh -c '
                         tar -xf - -C /app
                         npm ci || npm install
                         npm run build
-                    '
+                        tar -C public/build -cf /tmp/vite-assets.tar
+                        cat /tmp/vite-assets.tar
+                    ' | tar -C "$WORKSPACE/public/build" -xf -
 
                     tar -C "$WORKSPACE" -cf - . | docker run --rm -i -w /app php:8.2-cli bash -c '
                         apt-get update -qq

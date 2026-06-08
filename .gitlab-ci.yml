@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://json.schemastore.org/gitlab-ci.json
 stages:
   - build
   - test
@@ -70,6 +71,9 @@ build_backend:
 
 test_laravel:
   stage: test
+  needs:
+    - job: build_assets
+      artifacts: true
   image: php:8.2-cli
   services:
     - name: postgres:16-alpine
