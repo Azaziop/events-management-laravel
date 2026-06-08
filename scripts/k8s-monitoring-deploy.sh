@@ -91,9 +91,15 @@ kubectl get pods -n "${NAMESPACE}" -o wide
 
 echo ""
 k8s_log_line "=== Accès Grafana ==="
-k8s_log_line "  URL      : http://localhost:${GRAFANA_NODE_PORT}"
-k8s_log_line "  Login    : admin"
-k8s_log_line "  Password : admin"
+if k8s_using_kind && ! docker port eventapp-control-plane 2>/dev/null | grep -q ":${GRAFANA_NODE_PORT}->"; then
+    k8s_log_line "  kind sans port ${GRAFANA_NODE_PORT} mappé — utilisez port-forward depuis votre Mac :"
+    k8s_log_line "  ./scripts/k8s-monitoring-access.sh grafana"
+    k8s_log_line "  → http://localhost:${GRAFANA_NODE_PORT}  (admin / admin)"
+else
+    k8s_log_line "  URL      : http://localhost:${GRAFANA_NODE_PORT}"
+    k8s_log_line "  Login    : admin"
+    k8s_log_line "  Password : admin"
+fi
 if $loki_ok; then
     k8s_log_line "  Loki     : actif — requête {namespace=\"default\", pod=~\"eventapp.*\"}"
 else
@@ -101,7 +107,5 @@ else
 fi
 k8s_log_line ""
 k8s_log_line "Prometheus UI :"
-k8s_log_line "  kubectl port-forward -n ${NAMESPACE} svc/kube-prometheus-kube-prome-prometheus 9090:9090"
-k8s_log_line ""
-k8s_log_line "Si Grafana ne répond pas sur le port ${GRAFANA_NODE_PORT} :"
-k8s_log_line "  kubectl port-forward -n ${NAMESPACE} svc/kube-prometheus-grafana 30300:80"
+k8s_log_line "  ./scripts/k8s-monitoring-access.sh prometheus"
+k8s_log_line "  ou : kubectl port-forward -n ${NAMESPACE} svc/kube-prometheus-kube-prome-prometheus 9090:9090"

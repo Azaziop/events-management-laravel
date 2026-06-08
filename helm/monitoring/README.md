@@ -24,19 +24,39 @@ Jenkins exécute ce script automatiquement après le déploiement de l'applicati
 
 Sur kind/Jenkins, si Loki manque de ressources, Grafana et Prometheus restent disponibles.
 
-## Accès Grafana
+## Accès Grafana (depuis votre Mac)
+
+Grafana **tourne** dans le cluster, mais le port `30300` n'est pas toujours mappé sur localhost (cluster kind créé avant la config monitoring).
+
+**Solution — dans un terminal, laissez la commande tourner :**
+
+```bash
+chmod +x scripts/k8s-monitoring-access.sh
+./scripts/k8s-monitoring-access.sh grafana
+```
+
+Puis ouvrez **http://localhost:30300** — login `admin` / `admin`.
+
+Prometheus :
+
+```bash
+./scripts/k8s-monitoring-access.sh prometheus
+# → http://localhost:9090
+```
+
+Les deux en même temps :
+
+```bash
+./scripts/k8s-monitoring-access.sh both
+```
+
+### Accès direct (si port 30300 mappé sur kind)
 
 | | |
 |--|--|
 | **URL** | http://localhost:30300 |
 | **Login** | `admin` |
 | **Password** | `admin` |
-
-Si le port 30300 ne répond pas (cluster kind créé avant cette config) :
-
-```bash
-kubectl port-forward -n monitoring svc/kube-prometheus-grafana 30300:80
-```
 
 ## Logs EventApp dans Grafana
 
