@@ -4,8 +4,12 @@ COPY package*.json ./
 RUN npm install
 COPY . .
 RUN npm run build
-FROM composer:2-php8.2 AS vendor-builder
+FROM php:8.2-cli AS vendor-builder
 WORKDIR /app
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git unzip \
+    && curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer \
+    && rm -rf /var/lib/apt/lists/*
 COPY composer.json composer.lock ./
 RUN composer install --ignore-platform-reqs --no-interaction --no-plugins --no-scripts --prefer-dist
 FROM php:8.2-fpm-alpine AS runner
