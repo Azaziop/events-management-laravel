@@ -10,6 +10,7 @@ source "${SCRIPT_DIR}/k8s-tools.sh"
 k8s_setup_path
 NAMESPACE="${MONITORING_NAMESPACE:-monitoring}"
 GRAFANA_NODE_PORT="${GRAFANA_NODE_PORT:-30300}"
+PROMETHEUS_NODE_PORT="${PROMETHEUS_NODE_PORT:-30909}"
 LOKI_ENABLED="${LOKI_ENABLED:-auto}"
 
 if ! command -v helm >/dev/null 2>&1 || ! command -v kubectl >/dev/null 2>&1; then
@@ -21,10 +22,14 @@ if k8s_using_kind; then
     k8s_fix_kind_kubeconfig "$(kind_cluster_name)" || true
 fi
 
-kubectl cluster-info >/dev/null 2>&1 || {
-    echo "Cluster Kubernetes inaccessible. Lancez d'abord ./scripts/minikube-setup.sh"
+if ! k8s_ensure_cluster_access; then
+    echo "Cluster Kubernetes inaccessible."
+    echo ""
+    echo "  Cluster kind (Jenkins) : export KUBECONFIG=~/.kube/kind-eventapp.yaml"
+    echo "  Ou démarrer un cluster   : ./scripts/minikube-setup.sh"
+    echo "  Forcer kind sur Mac      : K8S_CLUSTER=kind ./scripts/minikube-setup.sh"
     exit 1
-}
+fi
 
 should_deploy_loki() {
     case "${LOKI_ENABLED}" in
@@ -48,12 +53,15 @@ helm repo update
 
 declare -a prom_extra_sets=()
 if k8s_using_kind || k8s_is_ci; then
-    k8s_log_line "Mode kind/CI : stack allégée (Alertmanager/node-exporter désactivés)"
+    k8s_log_line "Mode kind/CI : stack allégée (Alertmanager désactivé)"
     prom_extra_sets+=(
         --set alertmanager.enabled=false
-        --set nodeExporter.enabled=false
         --set prometheus.prometheusSpec.retention=2h
     )
+fi
+if [[ "${NODE_EXPORTER_ENABLED:-true}" =~ ^(false|0|no)$ ]]; then
+    k8s_log_line "node-exporter désactivé (NODE_EXPORTER_ENABLED=false) — panneau CPU par Node vide"
+    prom_extra_sets+=(--set nodeExporter.enabled=false)
 fi
 
 k8s_log_line "=== Déploiement kube-prometheus-stack (Prometheus + Grafana) ==="
@@ -63,6 +71,14 @@ helm upgrade --install kube-prometheus prometheus-community/kube-prometheus-stac
     -f "${MONITORING_DIR}/kube-prometheus-stack-values.yaml" \
     "${prom_extra_sets[@]}" \
     --wait --timeout 15m
+
+k8s_log_line "=== Dashboard Grafana « namespace » (exercice monitoring) ==="
+kubectl create configmap grafana-dashboard-eventapp-namespace \
+    --from-file=namespace.json="${MONITORING_DIR}/grafana-dashboard-namespace.json" \
+    --namespace "${NAMESPACE}" \
+    --dry-run=client -o yaml | \
+    kubectl label --local -f - grafana_dashboard=1 -o yaml | \
+    kubectl apply -f -
 
 loki_ok=false
 if should_deploy_loki; then
@@ -83,6 +99,7 @@ if should_deploy_loki; then
     fi
 else
     k8s_log_line "Loki désactivé (LOKI_ENABLED=false)"
+    helm uninstall loki -n "${NAMESPACE}" 2>/dev/null || true
 fi
 
 echo ""
@@ -90,22 +107,23 @@ k8s_log_line "=== Statut monitoring ==="
 kubectl get pods -n "${NAMESPACE}" -o wide
 
 echo ""
-k8s_log_line "=== Accès Grafana ==="
-if k8s_using_kind && ! docker port eventapp-control-plane 2>/dev/null | grep -q ":${GRAFANA_NODE_PORT}->"; then
-    k8s_log_line "  kind sans port ${GRAFANA_NODE_PORT} mappé — utilisez port-forward depuis votre Mac :"
-    k8s_log_line "  ./scripts/k8s-monitoring-access.sh grafana"
-    k8s_log_line "  → http://localhost:${GRAFANA_NODE_PORT}  (admin / admin)"
+k8s_log_line "=== Accès monitoring ==="
+k8s_log_line "  Kubeconfig : eval \"\$(./scripts/k8s-env.sh)\""
+k8s_log_line "  Démarrer   : ./scripts/k8s-monitoring-start.sh"
+k8s_log_line ""
+k8s_log_line "  Grafana    : http://localhost:${GRAFANA_NODE_PORT}  (admin / admin)"
+k8s_log_line "  Prometheus : http://localhost:9090  (via port-forward)"
+k8s_log_line "  Dashboard  : Dashboards → namespace"
+if k8s_using_kind && docker port eventapp-control-plane 2>/dev/null | grep -q ":${GRAFANA_NODE_PORT}->"; then
+    k8s_log_line "  (Grafana NodePort ${GRAFANA_NODE_PORT} mappé sur kind)"
+fi
+if k8s_using_kind && docker port eventapp-control-plane 2>/dev/null | grep -q ":${PROMETHEUS_NODE_PORT}->"; then
+    k8s_log_line "  (Prometheus NodePort ${PROMETHEUS_NODE_PORT} → http://localhost:${PROMETHEUS_NODE_PORT})"
 else
-    k8s_log_line "  URL      : http://localhost:${GRAFANA_NODE_PORT}"
-    k8s_log_line "  Login    : admin"
-    k8s_log_line "  Password : admin"
+    k8s_log_line "  Prometheus nécessite : ./scripts/k8s-monitoring-start.sh"
 fi
 if $loki_ok; then
-    k8s_log_line "  Loki     : actif — requête {namespace=\"default\", pod=~\"eventapp.*\"}"
+    k8s_log_line "  Loki       : actif — {namespace=\"default\", pod=~\"eventapp.*\"}"
 else
-    k8s_log_line "  Loki     : non déployé — utilisez kubectl logs pour les logs"
+    k8s_log_line "  Loki       : non déployé"
 fi
-k8s_log_line ""
-k8s_log_line "Prometheus UI :"
-k8s_log_line "  ./scripts/k8s-monitoring-access.sh prometheus"
-k8s_log_line "  ou : kubectl port-forward -n ${NAMESPACE} svc/kube-prometheus-kube-prome-prometheus 9090:9090"

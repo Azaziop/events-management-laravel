@@ -147,6 +147,11 @@ resource "aws_ecs_task_definition" "app" {
           containerPath = "/var/www/html/public"
           readOnly      = true
         },
+        {
+          sourceVolume  = "storage-data"
+          containerPath = "/var/www/html/storage"
+          readOnly      = true
+        },
       ]
       dependsOn = [
         {

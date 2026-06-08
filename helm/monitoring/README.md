@@ -24,39 +24,71 @@ Jenkins exécute ce script automatiquement après le déploiement de l'applicati
 
 Sur kind/Jenkins, si Loki manque de ressources, Grafana et Prometheus restent disponibles.
 
-## Accès Grafana (depuis votre Mac)
+## Dashboard « namespace » (exercice monitoring)
 
-Grafana **tourne** dans le cluster, mais le port `30300` n'est pas toujours mappé sur localhost (cluster kind créé avant la config monitoring).
+Dashboard identique à l'exercice avancé avec 4 panneaux :
 
-**Solution — dans un terminal, laissez la commande tourner :**
+| Panneau | Métrique |
+|---------|----------|
+| CPU Usage par Node | CPU des nœuds K8s |
+| Memory Usage par Pod | RAM du pod sélectionné |
+| Nombre de Restarts | Restarts conteneurs |
+| Pods en cours d'exécution | Camembert par namespace |
+
+### Import manuel (rapide)
+
+1. Ouvrir Grafana → **Dashboards** → **New** → **Import**
+2. **Upload JSON** : `helm/monitoring/grafana-dashboard-namespace.json`
+3. Datasource : **Prometheus**
+4. En haut : **Namespace** = `default`, **Pod** = `eventapp-events-management-...`
+
+### Déploiement auto
+
+Le script `./scripts/k8s-monitoring-deploy.sh` installe le dashboard dans **Dashboards → namespace**.
+
+### Filtres pour EventApp
+
+| Variable | Valeur |
+|----------|--------|
+| Namespace | `default` |
+| Pod | `eventapp-events-management-xxxxx` |
+
+**Note :** le panneau « CPU par Node » nécessite **node-exporter** (activé par défaut). Si « No data », redéployez le monitoring puis vérifiez dans Prometheus : `node_cpu_seconds_total`. Désactiver avec `NODE_EXPORTER_ENABLED=false`.
+
+**Restarts à 0** : normal si aucun pod n'a redémarré. Test : `kubectl delete pod -n default -l app.kubernetes.io/name=events-management` puis attendre 30 s.
+
+## Accès depuis votre Mac
+
+### 1. Corriger kubectl (contexte minikube → kind)
 
 ```bash
-chmod +x scripts/k8s-monitoring-access.sh
-./scripts/k8s-monitoring-access.sh grafana
+eval "$(./scripts/k8s-env.sh)"
+kubectl get pods -n monitoring
 ```
 
-Puis ouvrez **http://localhost:30300** — login `admin` / `admin`.
-
-Prometheus :
+### 2. Démarrer Grafana + Prometheus (arrière-plan)
 
 ```bash
-./scripts/k8s-monitoring-access.sh prometheus
-# → http://localhost:9090
+chmod +x scripts/k8s-monitoring-start.sh
+./scripts/k8s-monitoring-start.sh
 ```
 
-Les deux en même temps :
+| Service | URL | Login |
+|---------|-----|-------|
+| **Grafana** | http://localhost:30300 | `admin` / `admin` |
+| **Prometheus** | http://localhost:9090 | — |
+
+Arrêter les port-forwards :
+
+```bash
+./scripts/k8s-monitoring-start.sh stop
+```
+
+### Alternative — port-forward manuel (terminal ouvert)
 
 ```bash
 ./scripts/k8s-monitoring-access.sh both
 ```
-
-### Accès direct (si port 30300 mappé sur kind)
-
-| | |
-|--|--|
-| **URL** | http://localhost:30300 |
-| **Login** | `admin` |
-| **Password** | `admin` |
 
 ## Logs EventApp dans Grafana
 

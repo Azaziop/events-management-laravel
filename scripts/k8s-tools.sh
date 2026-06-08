@@ -139,6 +139,11 @@ k8s_fix_kind_kubeconfig() {
     local container="${cluster}-control-plane"
     local ip
 
+    # Sur Mac (hors Jenkins-in-Docker), kind kubeconfig via 127.0.0.1 fonctionne déjà.
+    if [ "$(uname -s)" = "Darwin" ] && ! k8s_is_docker_in_docker; then
+        return 0
+    fi
+
     ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$container" 2>/dev/null || true)"
     if [ -z "$ip" ]; then
         k8s_log_line "Impossible de résoudre l'IP du nœud kind — kubeconfig inchangé."
@@ -163,10 +168,12 @@ k8s_cleanup_broken_minikube() {
 }
 
 kind_setup_cluster() {
-    local cluster node_port grafana_port config_file
+    local cluster node_port grafana_port prometheus_port config_file kubeconfig
     cluster="$(kind_cluster_name)"
     node_port="${KIND_NODE_PORT:-30080}"
     grafana_port="${GRAFANA_NODE_PORT:-30300}"
+    prometheus_port="${PROMETHEUS_NODE_PORT:-30909}"
+    kubeconfig="${HOME}/.kube/kind-${cluster}.yaml"
 
     install_k8s_tools_if_missing
     command -v kind >/dev/null 2>&1 || { echo "kind introuvable"; return 1; }
@@ -174,6 +181,9 @@ kind_setup_cluster() {
     if kubectl cluster-info --context "kind-${cluster}" >/dev/null 2>&1; then
         k8s_log_line "Cluster kind/${cluster} déjà opérationnel."
         k8s_fix_kind_kubeconfig "$cluster" || true
+        kind get kubeconfig --name "$cluster" > "${kubeconfig}" 2>/dev/null || true
+        export KUBECONFIG="${kubeconfig}"
+        kubectl config use-context "kind-${cluster}" 2>/dev/null || true
         kubectl cluster-info --context "kind-${cluster}"
         return 0
     fi
@@ -193,18 +203,70 @@ nodes:
       - containerPort: ${grafana_port}
         hostPort: ${grafana_port}
         protocol: TCP
+      - containerPort: ${prometheus_port}
+        hostPort: ${prometheus_port}
+        protocol: TCP
 EOF
 
     k8s_log_line "=== Création du cluster kind (${cluster}) — 2 à 5 min au premier lancement ==="
     kind create cluster --name "$cluster" --config "$config_file" --wait 5m
     rm -f "$config_file"
 
+    kind get kubeconfig --name "$cluster" > "${kubeconfig}"
+    export KUBECONFIG="${kubeconfig}"
+    kubectl config use-context "kind-${cluster}" 2>/dev/null || true
     k8s_fix_kind_kubeconfig "$cluster"
     kubectl cluster-info --context "kind-${cluster}"
 }
 
 k8s_using_kind() {
     kubectl config current-context 2>/dev/null | grep -qE '^kind-'
+}
+
+# Corrige KUBECONFIG si le contexte courant (ex. minikube arrêté) est inaccessible
+# mais qu'un cluster kind local tourne encore (cas Mac + Jenkins/kind).
+k8s_ensure_cluster_access() {
+    if kubectl cluster-info >/dev/null 2>&1; then
+        if k8s_using_kind && { k8s_is_docker_in_docker || k8s_is_ci; }; then
+            k8s_fix_kind_kubeconfig "$(kind_cluster_name)" 2>/dev/null || true
+        fi
+        return 0
+    fi
+
+    local cluster container kubeconfig ctx api_port
+
+    cluster="$(kind_cluster_name)"
+    container="${cluster}-control-plane"
+    kubeconfig="${HOME}/.kube/kind-${cluster}.yaml"
+
+    if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "${container}"; then
+        return 1
+    fi
+
+    k8s_log_line "Cluster kind/${cluster} détecté — correction du kubeconfig (contexte minikube inaccessible)."
+    mkdir -p "${HOME}/.kube"
+
+    if command -v kind >/dev/null 2>&1; then
+        kind get kubeconfig --name "${cluster}" > "${kubeconfig}" 2>/dev/null || true
+    fi
+
+    if [ ! -s "${kubeconfig}" ]; then
+        api_port="$(docker port "${container}" 6443/tcp 2>/dev/null | sed -n '1s/.*://p' || true)"
+        if [ -z "$api_port" ]; then
+            return 1
+        fi
+        docker cp "${container}:/etc/kubernetes/admin.conf" /tmp/kind-admin.conf 2>/dev/null || return 1
+        sed "s|server: https://[^:]*:6443|server: https://127.0.0.1:${api_port}|" \
+            /tmp/kind-admin.conf > "${kubeconfig}"
+    fi
+
+    export KUBECONFIG="${kubeconfig}"
+    ctx="$(kubectl config get-contexts -o name 2>/dev/null | sed -n '1p')"
+    if [ -n "$ctx" ]; then
+        kubectl config use-context "$ctx" >/dev/null 2>&1 || true
+    fi
+
+    kubectl cluster-info >/dev/null 2>&1
 }
 
 k8s_load_image_to_cluster() {
@@ -269,8 +331,7 @@ print(data.get('KubernetesConfig', {}).get('KubernetesVersion', ''))
 " "$config" 2>/dev/null && return 0
         fi
         grep -o '"KubernetesVersion"[[:space:]]*:[[:space:]]*"v[^"]*"' "$config" \
-            | head -1 \
-            | sed 's/.*"\(v[^"]*\)".*/\1/'
+            | sed -n '1s/.*"\(v[^"]*\)".*/\1/p'
     fi
 }
 

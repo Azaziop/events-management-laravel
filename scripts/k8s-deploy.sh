@@ -27,6 +27,13 @@ if k8s_using_kind; then
     k8s_fix_kind_kubeconfig "$(kind_cluster_name)" || true
 fi
 
+if ! k8s_ensure_cluster_access; then
+    echo "Cluster Kubernetes inaccessible."
+    echo "  Lancez : ./scripts/minikube-setup.sh"
+    echo "  Ou     : K8S_CLUSTER=kind ./scripts/minikube-setup.sh"
+    exit 1
+fi
+
 IMAGE_PULL_POLICY="Never"
 if k8s_is_ci; then
     IMAGE_PULL_POLICY="IfNotPresent"

@@ -123,6 +123,9 @@ spec:
             - name: public-assets
               mountPath: /var/www/html/public
               readOnly: true
+            - name: storage-data
+              mountPath: /var/www/html/storage
+              readOnly: true
             - name: nginx-config
               mountPath: /etc/nginx/conf.d-source
               readOnly: true

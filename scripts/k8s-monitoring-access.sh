@@ -12,31 +12,20 @@ GRAFANA_LOCAL_PORT="${GRAFANA_LOCAL_PORT:-30300}"
 PROMETHEUS_LOCAL_PORT="${PROMETHEUS_LOCAL_PORT:-9090}"
 
 fix_kubeconfig_for_mac() {
-    local cluster container api_port kubeconfig
+    if k8s_ensure_cluster_access; then
+        echo "KUBECONFIG=${KUBECONFIG:-${HOME}/.kube/config}  context=$(kubectl config current-context)"
+        return 0
+    fi
+
+    local cluster container
     cluster="$(kind_cluster_name)"
     container="${cluster}-control-plane"
 
-    if ! docker ps --format '{{.Names}}' | grep -qx "${container}"; then
-        echo "Cluster kind/${cluster} introuvable. Lancez d'abord le pipeline Jenkins ou ./scripts/minikube-setup.sh"
-        exit 1
+    echo "Cluster kind/${cluster} introuvable. Lancez d'abord le pipeline Jenkins ou ./scripts/minikube-setup.sh"
+    if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx "${container}"; then
+        echo "  Conteneur ${container} existe mais n'est pas démarré : docker start ${container}"
     fi
-
-    api_port="$(docker port "${container}" 6443/tcp 2>/dev/null | head -1 | cut -d: -f2 || true)"
-    if [ -z "$api_port" ]; then
-        echo "Port API kind introuvable."
-        exit 1
-    fi
-
-    mkdir -p "${HOME}/.kube"
-    kubeconfig="${HOME}/.kube/kind-${cluster}.yaml"
-
-    docker cp "${container}:/etc/kubernetes/admin.conf" /tmp/kind-admin.conf
-    sed "s|server: https://[^:]*:6443|server: https://127.0.0.1:${api_port}|" \
-        /tmp/kind-admin.conf > "${kubeconfig}"
-
-    export KUBECONFIG="${kubeconfig}"
-    kubectl config use-context "kind-${cluster}" >/dev/null
-    echo "KUBECONFIG=${kubeconfig}"
+    exit 1
 }
 
 wait_for_svc() {
@@ -72,7 +61,15 @@ EOF
 
 main() {
     local mode="${1:-both}"
-    fix_kubeconfig_for_mac >/dev/null
+
+    case "$mode" in
+        -h | --help | help)
+            usage
+            return 0
+            ;;
+    esac
+
+    fix_kubeconfig_for_mac
 
     case "$mode" in
         grafana)
@@ -105,9 +102,6 @@ main() {
             local prom_pid=$!
             trap 'kill $grafana_pid $prom_pid 2>/dev/null || true' INT TERM EXIT
             wait
-            ;;
-        -h | --help | help)
-            usage
             ;;
         *)
             echo "Mode inconnu : $mode"
