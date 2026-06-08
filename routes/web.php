@@ -1,12 +1,10 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
-
-use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\ParticipantController;
-use App\Http\Controllers\Admin\UserController as AdminUserController;
+use App\Http\Controllers\ProfileController;
+use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
@@ -53,11 +51,10 @@ Route::get('/dashboard', [EventController::class, 'dashboard'])
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
 
-    // routes/web.php
+// routes/web.php
 Route::post('/dashboard/events', [EventController::class, 'storeFromDashboard'])
-  ->middleware(['auth','verified'])
-  ->name('dashboard.events.store');
-
+    ->middleware(['auth', 'verified'])
+    ->name('dashboard.events.store');
 
 // Auth scaffolding (Breeze/Fortify)
-require __DIR__ . '/auth.php';
+require __DIR__.'/auth.php';

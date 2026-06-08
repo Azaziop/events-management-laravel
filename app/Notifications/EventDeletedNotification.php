@@ -12,7 +12,9 @@ class EventDeletedNotification extends Notification implements ShouldQueue
     use Queueable;
 
     public $eventTitle;
+
     public $eventDate;
+
     public $eventLocation;
 
     /**
@@ -40,19 +42,19 @@ class EventDeletedNotification extends Notification implements ShouldQueue
      */
     public function toMail(object $notifiable): MailMessage
     {
-           $eventDate = is_string($this->eventDate)
-               ? \Carbon\Carbon::parse($this->eventDate)
-               : $this->eventDate;
+        $eventDate = is_string($this->eventDate)
+            ? \Carbon\Carbon::parse($this->eventDate)
+            : $this->eventDate;
 
         return (new MailMessage)
-            ->subject('Événement annulé - ' . $this->eventTitle . ' - EventApp')
+            ->subject('Événement annulé - '.$this->eventTitle.' - EventApp')
             ->error()
-            ->greeting('Bonjour ' . $notifiable->name . ' !')
+            ->greeting('Bonjour '.$notifiable->name.' !')
             ->line('Nous vous informons que l\'événement suivant a été **annulé** :')
-            ->line('### ' . $this->eventTitle)
+            ->line('### '.$this->eventTitle)
             ->line('')
-               ->line('**Date prévue :** ' . $eventDate->format('d/m/Y à H:i'))
-            ->line('**Lieu :** ' . $this->eventLocation)
+            ->line('**Date prévue :** '.$eventDate->format('d/m/Y à H:i'))
+            ->line('**Lieu :** '.$this->eventLocation)
             ->line('')
             ->line('Nous nous excusons pour la gêne occasionnée.')
             ->action('Découvrir d\'autres événements', url('/dashboard'))

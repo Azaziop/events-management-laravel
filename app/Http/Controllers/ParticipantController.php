@@ -1,27 +1,28 @@
 <?php
+
 // app/Http/Controllers/ParticipantController.php
+
 namespace App\Http\Controllers;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Notification;
-use Illuminate\Support\Facades\Log;
+
 use App\Models\Event;
-use App\Models\User;
-use App\Notifications\ParticipantJoinedNotification;
 use App\Notifications\ParticipantConfirmationNotification;
+use App\Notifications\ParticipantJoinedNotification;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class ParticipantController extends Controller
 {
     public function store(Request $request, \App\Models\Event $event)
-{
+    {
         // Récupérer le participant (utilisateur actuel)
         /** @var \App\Models\User $participant */
         $participant = Auth::user();
 
-          // Sécurité backend: empêcher l'inscription si l'événement est passé
-          if ($event->is_past) {
-                return back()->with('error', "Cet événement est déjà passé. L'inscription n'est plus possible.");
-          }
+        // Sécurité backend: empêcher l'inscription si l'événement est passé
+        if ($event->is_past) {
+            return back()->with('error', "Cet événement est déjà passé. L'inscription n'est plus possible.");
+        }
 
         // Vérifier si le participant n'est pas déjà inscrit
         $alreadyJoined = $event->participants()->where('user_id', $participant->id)->exists();
@@ -30,7 +31,7 @@ class ParticipantController extends Controller
         $event->participants()->syncWithoutDetaching([Auth::id()]);
 
         // Envoyer les notifications seulement si c'est une nouvelle inscription
-        if (!$alreadyJoined) {
+        if (! $alreadyJoined) {
             // 1. Notifier le créateur de l'événement
             $creator = $event->creator;
             if ($creator && $creator->id !== $participant->id) {
@@ -50,10 +51,9 @@ class ParticipantController extends Controller
             ]);
         }
 
-    // Rediriger vers le dashboard avec message de succès
-    return redirect()->route('dashboard')->with('success', 'Inscription confirmée pour l\'événement "' . $event->title . '".');
-}
-
+        // Rediriger vers le dashboard avec message de succès
+        return redirect()->route('dashboard')->with('success', 'Inscription confirmée pour l\'événement "'.$event->title.'".');
+    }
 
     public function autoJoin(Request $request, Event $event)
     {

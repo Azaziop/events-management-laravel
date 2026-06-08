@@ -1,20 +1,21 @@
 <?php
+
 // app/Http/Controllers/EventController.php
+
 namespace App\Http\Controllers;
 
 use App\Models\Event;
-use App\Notifications\EventUpdated;
-use App\Notifications\EventDeletedNotification;
-use App\Notifications\EventCreatedNotification;
-use Illuminate\Http\Request;
-use Inertia\Inertia;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Notification;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Validation\Rule;
-use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use App\Models\User;
+use App\Notifications\EventCreatedNotification;
+use App\Notifications\EventDeletedNotification;
+use App\Notifications\EventUpdated;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Storage;
+use Inertia\Inertia;
 
 class EventController extends Controller
 {
@@ -22,8 +23,9 @@ class EventController extends Controller
 
     public function home()
     {
-    $events = Event::with('creator')->latest()->take(6)->get();
-    return Inertia::render('WelcomeNew', ['recentEvents' => $events]);
+        $events = Event::with('creator')->latest()->take(6)->get();
+
+        return Inertia::render('WelcomeNew', ['recentEvents' => $events]);
     }
 
     public function index(Request $request)
@@ -31,10 +33,9 @@ class EventController extends Controller
         $events = Event::query()
             ->with(['participants:id,name,email'])
             ->withCount('participants')
-            ->when($request->input('search'), fn ($q, $s) =>
-                $q->where(fn($qq)=>$qq->where('title','ilike',"%$s%")->orWhere('location','ilike',"%$s%"))
+            ->when($request->input('search'), fn ($q, $s) => $q->where(fn ($qq) => $qq->where('title', 'ilike', "%$s%")->orWhere('location', 'ilike', "%$s%"))
             )
-            ->when($request->input('date'), function($query, $date) {
+            ->when($request->input('date'), function ($query, $date) {
                 return $query->whereDate('date', $date);
             })
             ->latest()
@@ -81,7 +82,7 @@ class EventController extends Controller
         ]);
 
         // Notifier tous les utilisateurs d'un nouvel événement
-        $recipients = User::query()->select('id','name','email')->get();
+        $recipients = User::query()->select('id', 'name', 'email')->get();
         Log::info('EventCreated: preparing notifications', [
             'event_id' => $event->id,
             'recipients_count' => $recipients->count(),
@@ -100,6 +101,7 @@ class EventController extends Controller
     {
         $this->authorize('update', $event);
         $event->load(['participants:id,name,email']);
+
         return Inertia::render('Events/Edit', ['event' => $event]);
     }
 
@@ -113,21 +115,23 @@ class EventController extends Controller
             'location' => ['required', 'max:255'],
             'description' => ['nullable', 'string'],
             'image' => ['nullable', 'image', 'max:2048'],
-            'from' => ['nullable','string'],
+            'from' => ['nullable', 'string'],
         ], [
             'date.after' => 'La date de l\'événement doit être dans le futur.',
         ]);
 
         if ($request->hasFile('image')) {
-            if ($event->image_path) Storage::disk('public')->delete($event->image_path);
-            $event->image_path = $request->file('image')->store('events','public');
+            if ($event->image_path) {
+                Storage::disk('public')->delete($event->image_path);
+            }
+            $event->image_path = $request->file('image')->store('events', 'public');
         }
 
         $event->fill([
-            'title'=>$data['title'],
-            'date'=>$data['date'],
-            'location'=>$data['location'],
-            'description'=>$data['description'] ?? null,
+            'title' => $data['title'],
+            'date' => $data['date'],
+            'location' => $data['location'],
+            'description' => $data['description'] ?? null,
         ])->save();
 
         // Notifier tous les participants de la mise à jour
@@ -200,6 +204,7 @@ class EventController extends Controller
     public function show(Event $event)
     {
         $event->load(['creator', 'participants:id,name,email']);
+
         return Inertia::render('Events/Show', ['event' => $event]);
     }
 
@@ -208,32 +213,36 @@ class EventController extends Controller
         $events = Event::query()
             ->with(['participants:id,name,email']) // <<--- clé pour la participation et les emails
             ->withCount('participants')
-            ->when($request->input('search'), fn($q,$s)=>
-                $q->where(fn($qq)=>$qq->where('title','ilike',"%$s%")->orWhere('location','ilike',"%$s%"))
+            ->when($request->input('search'), fn ($q, $s) => $q->where(fn ($qq) => $qq->where('title', 'ilike', "%$s%")->orWhere('location', 'ilike', "%$s%"))
             )
             ->latest()
             ->paginate(12)
             ->withQueryString();
 
         // Map supplémentaire pour frontend: participantsIds + is_past déjà présent via accessor
-        $events->getCollection()->transform(function($e){
+        $events->getCollection()->transform(function ($e) {
             $e->participantsIds = $e->participants->pluck('id')->toArray();
+
             return $e;
         });
 
         $event = null;
         if ($request->filled('show')) {
             $event = Event::with(['creator', 'participants:id,name,email'])->find($request->input('show'));
-            if ($event) { $event->participantsIds = $event->participants->pluck('id')->toArray(); }
+            if ($event) {
+                $event->participantsIds = $event->participants->pluck('id')->toArray();
+            }
         }
         if ($request->filled('edit')) {
             $event = Event::with(['creator', 'participants:id,name,email'])->find($request->input('edit'));
-            if ($event) { $event->participantsIds = $event->participants->pluck('id')->toArray(); }
+            if ($event) {
+                $event->participantsIds = $event->participants->pluck('id')->toArray();
+            }
         }
 
         return Inertia::render('Dashboard', [
-            'events'  => $events,
-            'event'   => $event,
+            'events' => $events,
+            'event' => $event,
             'filters' => ['search' => $request->input('search')],
         ]);
     }
@@ -256,16 +265,16 @@ class EventController extends Controller
         }
 
         $event = Event::create([
-            'title'=>$data['title'],
-            'date'=>$data['date'],
-            'location'=>$data['location'],
-            'description'=>$data['description'] ?? null,
-            'image_path'=>$path,
-            'creator_id'=>Auth::id(),
+            'title' => $data['title'],
+            'date' => $data['date'],
+            'location' => $data['location'],
+            'description' => $data['description'] ?? null,
+            'image_path' => $path,
+            'creator_id' => Auth::id(),
         ]);
 
         // Notifier tous les utilisateurs d'un nouvel événement
-        $recipients = User::query()->select('id','name','email')->get();
+        $recipients = User::query()->select('id', 'name', 'email')->get();
         Log::info('EventCreated: preparing notifications', [
             'event_id' => $event->id,
             'recipients_count' => $recipients->count(),

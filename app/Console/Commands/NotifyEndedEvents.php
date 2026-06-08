@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Notification;
 class NotifyEndedEvents extends Command
 {
     protected $signature = 'events:notify-ended';
+
     protected $description = 'Notifier les participants des événements terminés et marquer comme notifié';
 
     public function handle(): int
@@ -23,6 +24,7 @@ class NotifyEndedEvents extends Command
 
         if ($events->isEmpty()) {
             $this->info('Aucun événement à notifier.');
+
             return self::SUCCESS;
         }
 

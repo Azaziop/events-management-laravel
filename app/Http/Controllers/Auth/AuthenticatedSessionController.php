@@ -41,6 +41,7 @@ class AuthenticatedSessionController extends Controller
         // Vérifier s'il y a une intention de rejoindre un événement
         if ($request->session()->has('join_event_id')) {
             $eventId = $request->session()->pull('join_event_id');
+
             return redirect()->route('events.auto-join', $eventId);
         }
 

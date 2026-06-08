@@ -32,15 +32,15 @@ class ParticipantConfirmationNotification extends Notification implements Should
             : $this->event->date;
 
         return (new MailMessage)
-            ->subject('Inscription confirmée - ' . $this->event->title . ' - EventApp')
-            ->greeting('Bonjour ' . $notifiable->name . ' !')
+            ->subject('Inscription confirmée - '.$this->event->title.' - EventApp')
+            ->greeting('Bonjour '.$notifiable->name.' !')
             ->line('Votre inscription à l\'événement suivant a été **confirmée avec succès** :')
-            ->line('### ' . $this->event->title)
+            ->line('### '.$this->event->title)
             ->line('')
-            ->line('**Date :** ' . $eventDate->format('d/m/Y à H:i'))
-            ->line('**Lieu :** ' . $this->event->location)
+            ->line('**Date :** '.$eventDate->format('d/m/Y à H:i'))
+            ->line('**Lieu :** '.$this->event->location)
             ->when($this->event->description, function ($mail) {
-                return $mail->line('**Description :** ' . $this->event->description);
+                return $mail->line('**Description :** '.$this->event->description);
             })
             ->line('')
             ->line('Vous recevrez un email de notification en cas de modification ou d\'annulation.')

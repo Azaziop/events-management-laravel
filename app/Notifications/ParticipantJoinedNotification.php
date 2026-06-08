@@ -39,15 +39,15 @@ class ParticipantJoinedNotification extends Notification implements ShouldQueue
 
         return (new MailMessage)
             ->subject('Nouveau participant à votre événement - EventApp')
-            ->greeting('Bonjour ' . $notifiable->name . ' !')
-            ->line('**' . $this->participant->name . '** vient de rejoindre votre événement :')
-            ->line('### ' . $this->event->title)
+            ->greeting('Bonjour '.$notifiable->name.' !')
+            ->line('**'.$this->participant->name.'** vient de rejoindre votre événement :')
+            ->line('### '.$this->event->title)
             ->line('')
-            ->line('**Date :** ' . $eventDate->format('d/m/Y à H:i'))
-            ->line('**Lieu :** ' . $this->event->location)
-            ->line('**Participants inscrits :** ' . $participantsCount)
+            ->line('**Date :** '.$eventDate->format('d/m/Y à H:i'))
+            ->line('**Lieu :** '.$this->event->location)
+            ->line('**Participants inscrits :** '.$participantsCount)
             ->line('')
-            ->action('Voir l\'événement', url('/dashboard?show=' . $this->event->id))
+            ->action('Voir l\'événement', url('/dashboard?show='.$this->event->id))
             ->line('Merci d\'utiliser EventApp !')
             ->salutation('Cordialement, L\'équipe EventApp');
     }

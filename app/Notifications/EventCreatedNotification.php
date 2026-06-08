@@ -32,15 +32,15 @@ class EventCreatedNotification extends Notification implements ShouldQueue
             : $this->event->date;
 
         return (new MailMessage)
-            ->subject('Nouvel événement - ' . $this->event->title . ' - EventApp')
-            ->greeting('Bonjour ' . $notifiable->name . ' !')
+            ->subject('Nouvel événement - '.$this->event->title.' - EventApp')
+            ->greeting('Bonjour '.$notifiable->name.' !')
             ->line('Un nouvel événement vient d\'être publié :')
-            ->line('### ' . $this->event->title)
+            ->line('### '.$this->event->title)
             ->line('')
-            ->line('**Date :** ' . $eventDate->format('d/m/Y à H:i'))
-            ->line('**Lieu :** ' . $this->event->location)
+            ->line('**Date :** '.$eventDate->format('d/m/Y à H:i'))
+            ->line('**Lieu :** '.$this->event->location)
             ->when($this->event->description, function ($mail) {
-                return $mail->line('**Description :** ' . $this->event->description);
+                return $mail->line('**Description :** '.$this->event->description);
             })
             ->line('')
             ->action('Voir dans EventApp', url('/dashboard'))

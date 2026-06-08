@@ -26,13 +26,13 @@ class EventEndedNotification extends Notification implements ShouldQueue
             : $this->event->date;
 
         return (new MailMessage)
-            ->subject('Événement terminé - ' . $this->event->title . ' - EventApp')
-            ->greeting('Bonjour ' . $notifiable->name . ' !')
+            ->subject('Événement terminé - '.$this->event->title.' - EventApp')
+            ->greeting('Bonjour '.$notifiable->name.' !')
             ->line('Merci d\'avoir participé à l\'événement suivant :')
-            ->line('### ' . $this->event->title)
+            ->line('### '.$this->event->title)
             ->line('')
-            ->line('**Date :** ' . $eventDate->format('d/m/Y à H:i'))
-            ->line('**Lieu :** ' . $this->event->location)
+            ->line('**Date :** '.$eventDate->format('d/m/Y à H:i'))
+            ->line('**Lieu :** '.$this->event->location)
             ->line('')
             ->line('Nous espérons vous revoir très bientôt dans nos prochains événements !')
             ->action('Voir mes événements', url('/dashboard'))
