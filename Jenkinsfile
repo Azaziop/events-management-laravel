@@ -228,17 +228,55 @@ IMAGE_TAG=${TAG_NAME:-$IMAGE_TAG}
 DEPLOY_ENV=${BRANCH_NAME:-production}
 BUILD_NUMBER=${BUILD_NUMBER}
 GIT_COMMIT=${GIT_COMMIT}
+ECS_CLUSTER=${ECS_CLUSTER:-event-management-cluster}
+ECS_SERVICE=${ECS_SERVICE:-event-management-service}
+AWS_REGION=${AWS_REGION:-eu-west-3}
 EOF
 
                         echo "=== Manifeste de déploiement ==="
                         cat deploy.env
-                        echo ""
-                        echo "=== Commandes de déploiement suggérées ==="
-                        echo "docker pull $IMAGE_NAME:${TAG_NAME:-$IMAGE_TAG}"
-                        echo "docker compose -f docker-compose.prod.yml up -d"
                     '''
                 }
                 archiveArtifacts artifacts: 'deploy.env', fingerprint: true, allowEmptyArchive: false
+            }
+        }
+
+        stage('Déploiement ECS (AWS)') {
+            when {
+                expression {
+                    if (env.TAG_NAME?.trim()) {
+                        return true
+                    }
+                    def branch = (env.BRANCH_NAME ?: env.GIT_BRANCH ?: '').replaceFirst(/^origin\//, '').trim()
+                    return branch in ['master', 'main']
+                }
+            }
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'dockerhub-credentials',
+                        usernameVariable: 'DOCKERHUB_USERNAME',
+                        passwordVariable: 'DOCKERHUB_TOKEN'
+                    ),
+                    [$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials']
+                ]) {
+                    sh '''
+                        if echo "$DOCKERHUB_REPOSITORY" | grep -q '/'; then
+                            export IMAGE_NAME="$DOCKERHUB_REPOSITORY"
+                        else
+                            export IMAGE_NAME="$DOCKERHUB_USERNAME/$DOCKERHUB_REPOSITORY"
+                        fi
+
+                        export IMAGE_TAG="${TAG_NAME:-$IMAGE_TAG}"
+                        export ECS_CLUSTER="${ECS_CLUSTER:-event-management-cluster}"
+                        export ECS_SERVICE="${ECS_SERVICE:-event-management-service}"
+                        export AWS_REGION="${AWS_REGION:-eu-west-3}"
+                        export AWS_DEFAULT_REGION="$AWS_REGION"
+
+                        chmod +x scripts/ecs-deploy.sh
+                        ./scripts/ecs-deploy.sh
+                    '''
+                }
             }
         }
     }
