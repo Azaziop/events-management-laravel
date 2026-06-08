@@ -4,7 +4,8 @@
         "paths": {
             "@/*": ["resources/js/*"],
             "ziggy-js": ["./vendor/tightenco/ziggy"]
-        }
+        },
+        "skipLibCheck": true
     },
-    "exclude": ["node_modules", "public"]
+    "exclude": ["node_modules", "public", "**/* 2.*", "**/* 2"]
 }
